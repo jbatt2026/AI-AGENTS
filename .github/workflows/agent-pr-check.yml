@@ -1,0 +1,34 @@
+name: Agent PR Validation Check
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify TypeScript & Build
+        run: npm run build
+
+      - name: Check for committed secrets
+        run: |
+          echo "Scanning for accidental secret leaks (.pem, private keys)..."
+          if grep -rn "BEGIN RSA PRIVATE KEY" . --exclude-dir={node_modules,.git,dist}; then
+            echo "ERROR: Found committed private key in repository!"
+            exit 1
+          fi
+          echo "Secret scan passed cleanly."

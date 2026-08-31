@@ -29,11 +29,11 @@ those files are **not yet written**:
 
 | Referenced in README | Exists? | Purpose when created |
 | --- | --- | --- |
-| `INSTALL_GITHUB_APP.md` | No | Step-by-step GitHub App install/config |
-| `.github/GITHUB_APP_MANIFEST.json` | No | App manifest (permissions, webhook, events) |
-| `CONTRIBUTING.md` | No | Contributor and agent guidelines |
-| `CODEOWNERS` | No | Review ownership routing |
-| `.github/workflows/*.yml` | No | Checks on agent-created PRs |
+| `INSTALL_GITHUB_APP.md` | Yes | Step-by-step GitHub App install/config |
+| `.github/GITHUB_APP_MANIFEST.json` | Yes | App manifest (permissions, webhook, events) |
+| `CONTRIBUTING.md` | Yes | Contributor and agent guidelines |
+| `CODEOWNERS` | Yes | Review ownership routing |
+| `.github/workflows/agent-pr-check.yml` | Yes | Checks on agent-created PRs |
 
 Treat that table as the backlog. When a task touches one of those items, create
 the file rather than assuming it is somewhere you haven't looked. When you do
@@ -47,26 +47,20 @@ once real code lands.
 
 ### Language and tooling
 
-No language has been committed to yet. Whatever the first substantive change
-picks, establish it deliberately and record it here:
+The project uses a standard TypeScript / Vite / React stack with Node.js 22 runtime:
 
-- Add a dependency manifest at the repo root (`package.json`, `pyproject.toml`,
-  or equivalent) in the same change that adds the first source file.
-- Add a runnable check (linter and/or tests) in that same change, and wire it
-  into `.github/workflows/` so agent-authored PRs are actually verified.
-- Then replace the "Commands" section below with the real commands.
-
-Prefer the standard, boring choice for the ecosystem over anything clever — this
-repo's audience is other agents, and predictable layout matters more than taste.
+- Dependency manifest: `package.json`
+- Build command: `npm run build`
+- Dev server: `npm run dev` (starts on port 3000, host 0.0.0.0)
+- Continuous Integration: `.github/workflows/agent-pr-check.yml`
 
 ### Commands
 
-None yet. There is nothing to install, build, lint, or test. Do not invent
-commands or claim a check passed when no check exists; say plainly that the repo
-has no test suite.
-
-Once tooling lands, document the exact invocations here (install, lint,
-typecheck, test, run) so future sessions don't have to rediscover them.
+Documented invocations:
+- `npm install` — install dependencies
+- `npm run dev` — start local development server at `http://localhost:3000`
+- `npm run build` — typecheck and compile production bundle into `dist/`
+- `npm run preview` — preview production build locally
 
 ### Layout for new code
 

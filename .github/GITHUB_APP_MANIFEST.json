@@ -1,0 +1,28 @@
+{
+  "name": "ai-agents-bot",
+  "url": "https://github.com/jbatt2026/AI-AGENTS",
+  "hook_attributes": {
+    "url": "https://example.com/api/github/webhook",
+    "active": false
+  },
+  "redirect_url": "https://github.com/jbatt2026/AI-AGENTS",
+  "description": "Automated GitHub App for AI Agents (Hermes, Claude Code, Gemini) to push branches, open pull requests, and manage code reviews.",
+  "public": false,
+  "default_permissions": {
+    "contents": "write",
+    "pull_requests": "write",
+    "issues": "write",
+    "actions": "write",
+    "checks": "write",
+    "workflows": "write",
+    "metadata": "read"
+  },
+  "default_events": [
+    "pull_request",
+    "pull_request_review",
+    "issue_comment",
+    "workflow_run",
+    "workflow_dispatch",
+    "push"
+  ]
+}
