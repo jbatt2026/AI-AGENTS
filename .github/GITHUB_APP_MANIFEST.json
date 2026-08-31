@@ -2,7 +2,7 @@
   "name": "ai-agents-bot",
   "url": "https://github.com/jbatt2026/AI-AGENTS",
   "hook_attributes": {
-    "url": "https://example.com/api/github/webhook",
+    "url": "${GITHUB_WEBHOOK_URL}",
     "active": false
   },
   "redirect_url": "https://github.com/jbatt2026/AI-AGENTS",
@@ -12,9 +12,9 @@
     "contents": "write",
     "pull_requests": "write",
     "issues": "write",
-    "actions": "write",
+    "actions": "read",
     "checks": "write",
-    "workflows": "write",
+    "workflows": "read",
     "metadata": "read"
   },
   "default_events": [

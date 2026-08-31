@@ -12,6 +12,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate branch naming convention
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/')
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          echo "Validating branch: $BRANCH"
+          if [[ ! $BRANCH =~ ^agent/[a-z0-9-]+$ ]]; then
+            echo "ERROR: Agent branch '$BRANCH' does not match pattern 'agent/<agent-name>-<task-slug>'"
+            echo "Example: agent/claude-fix-webhook, agent/hermes-add-docs"
+            exit 1
+          fi
+          echo "Branch naming validation passed."
+
+      - name: Validate agent PR attribution footer
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        run: |
+          BODY="${{ github.event.pull_request.body }}"
+          if [[ "$BODY" == *"Generated with"* ]] || [[ "$BODY" == *"Co-authored-by:"* ]]; then
+            echo "Attribution footer found in PR body."
+          else
+            echo "WARNING: PR body may lack proper attribution. Recommended attribution footer:"
+            echo "> Generated with Claude Code / AI-AGENTS"
+            echo "> Co-authored-by: Claude <noreply@anthropic.com>"
+            # Comment if attribution is missing (non-blocking for now)
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -26,9 +51,31 @@ jobs:
 
       - name: Check for committed secrets
         run: |
-          echo "Scanning for accidental secret leaks (.pem, private keys)..."
-          if grep -rn "BEGIN RSA PRIVATE KEY" . --exclude-dir={node_modules,.git,dist}; then
+          echo "Scanning for accidental secret leaks (.pem, private keys, API keys, tokens)..."
+          
+          # Scan for private keys
+          if grep -rn "BEGIN RSA PRIVATE KEY\|BEGIN EC PRIVATE KEY\|BEGIN OPENSSH PRIVATE KEY" . --exclude-dir={node_modules,.git,dist}; then
             echo "ERROR: Found committed private key in repository!"
             exit 1
           fi
+          
+          # Scan for common API key/token patterns
+          if grep -rn -E "(api[_-]?key|bearer[_-]?token|access[_-]?token|oauth[_-]?token|secret[_-]?key|password)\s*[:=]\s*['\"]?[A-Za-z0-9_-]{20,}" . --exclude-dir={node_modules,.git,dist} --exclude-file=.env.example; then
+            echo "ERROR: Found potential API key or token in committed code!"
+            exit 1
+          fi
+          
+          # Scan for AWS credential patterns
+          if grep -rn "AKIA[0-9A-Z]\{16\}" . --exclude-dir={node_modules,.git,dist}; then
+            echo "ERROR: Found potential AWS access key in repository!"
+            exit 1
+          fi
+          
+          # Scan for GitHub tokens
+          if grep -rn "ghp_[A-Za-z0-9_]\{36\}\|ghu_[A-Za-z0-9_]\{36\}" . --exclude-dir={node_modules,.git,dist}; then
+            echo "ERROR: Found GitHub personal access token in repository!"
+            exit 1
+          fi
+          
           echo "Secret scan passed cleanly."
+

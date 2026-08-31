@@ -6,8 +6,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    host: '0.0.0.0',
-    port: 3000,
+    // Restrict to localhost by default for security. Override with VITE_HOST env var for network access.
+    host: process.env.VITE_HOST || '127.0.0.1',
+    port: parseInt(process.env.VITE_PORT || '3000', 10),
     allowedHosts: true,
   },
 });

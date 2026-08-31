@@ -51,33 +51,69 @@ The project uses a standard TypeScript / Vite / React stack with Node.js 22 runt
 
 - Dependency manifest: `package.json`
 - Build command: `npm run build`
-- Dev server: `npm run dev` (starts on port 3000, host 0.0.0.0)
+- Dev server: `npm run dev` (starts on port 3000, host localhost by default; use `VITE_HOST=0.0.0.0` to expose to network)
 - Continuous Integration: `.github/workflows/agent-pr-check.yml`
 
 ### Commands
 
 Documented invocations:
 - `npm install` — install dependencies
-- `npm run dev` — start local development server at `http://localhost:3000`
+- `npm run dev` — start local development server at `http://localhost:3000` (restricted to localhost by default for security)
 - `npm run build` — typecheck and compile production bundle into `dist/`
 - `npm run preview` — preview production build locally
+
+For network access (shared/cloud environments), set environment variables:
+```bash
+VITE_HOST=0.0.0.0 npm run dev    # Expose to network (use only on trusted networks)
+VITE_PORT=5000 npm run dev       # Use custom port
+```
+
+### Environment Setup
+
+Before developing locally:
+
+```bash
+# Copy template and add your credentials (ONLY to .env.local, which is .gitignored)
+cp .env.example .env.local
+
+# Enable pre-commit secret scanning hook
+git config --local core.hooksPath .githooks
+chmod +x .githooks/pre-commit  # On Unix/macOS
+```
+
+The `.env.local` file is git-ignored and safe for local development. For CI/CD:
+- Use GitHub Secrets (Settings > Secrets > Actions) for GitHub Actions workflows
+- Use your cloud platform's secret manager (AWS Secrets Manager, GCP Secret Manager) for deployed services
+- Never commit `.env.local`, `.env.pem`, or any credential files
 
 ### Layout for new code
 
 When adding the first real code, keep the root uncluttered:
 
 - `.github/` — App manifest, workflows, issue/PR templates, `CODEOWNERS`.
+- `.githooks/` — Git hooks for local development (pre-commit secret scanning)
 - `scripts/` — standalone operational scripts agents run.
 - `src/` (or the ecosystem's convention) — reusable library code.
 - `docs/` — anything longer than a section of `README.md`.
 
-### Secrets
+### Secrets & Credential Safety
 
 This repo is about credentialed automation, so the rule is strict: **never**
 commit App private keys (`.pem`), installation tokens, webhook secrets,
 `.env` files, or any live credential. Reference them as environment variables
 or GitHub Actions secrets and document the variable names only. If you find a
 committed secret, stop and flag it rather than quietly rewriting history.
+
+**Local Protection:**
+- `.env.local`, `*.pem`, and `.env.*local` are git-ignored (see `.gitignore`)
+- Pre-commit hook (in `.githooks/pre-commit`) scans staged changes for secrets before commit
+- CI workflow scans for private keys, API keys, tokens, and AWS credentials
+
+**Setup:**
+After cloning, enable the pre-commit hook:
+```bash
+git config --local core.hooksPath .githooks
+```
 
 ## Git workflow
 
