@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Pushes made with a GitHub App installation token do not start workflow
+  # runs, so agent-authored branches need a way to run this on demand.
+  workflow_dispatch:
 
 permissions:
   contents: read
