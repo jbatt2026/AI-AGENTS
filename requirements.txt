@@ -1,0 +1,13 @@
+# Runtime dependencies for scripts/face_agent.py
+#
+# The script's core (storage, matching, HTTP API, MCP server) is stdlib-only.
+# A face backend is what needs third-party packages. Pick one:
+#
+#   Default, no compiler needed:
+#       pip install -r requirements.txt
+#
+#   Higher accuracy (needs cmake + a C++ toolchain for dlib):
+#       pip install -r requirements.txt face_recognition>=1.3
+#
+opencv-python>=4.7
+numpy>=1.21

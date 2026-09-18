@@ -14,18 +14,24 @@ The repository is **public**. Assume anything committed here is world-readable.
 
 ## Current state — read this first
 
-This repo is a scaffold. As of the latest commit it contains exactly two files:
+The repo holds one tool so far — `face-agent`, a local facial recognition
+service that agents call over MCP or a loopback HTTP API:
 
 ```
-README.md     # repo purpose and agent guidance
-CLAUDE.md     # this file
+README.md                    # repo purpose and agent guidance
+CLAUDE.md                    # this file
+pyproject.toml               # project metadata, ruff + pytest config
+requirements.txt             # runtime deps (opencv backend)
+requirements-dev.txt         # + pytest, ruff, pyinstaller
+scripts/face_agent.py        # the tool: CLI, HTTP API, MCP server
+scripts/build_executable.py  # PyInstaller wrapper -> dist/face-agent[.exe]
+tests/                       # pytest suite, no camera or vision libs needed
+docs/FACE_AGENT.md           # install, usage, agent integration
+.github/workflows/ci.yml     # ruff + pytest on 3.10/3.11/3.12
 ```
 
-There is **no source code, no package manifest, no test suite, no CI, and no
-build system yet.** Do not report or assume otherwise.
-
-`README.md` describes the repo's intended contents in the present tense, but
-those files are **not yet written**:
+The GitHub App machinery the README describes in the present tense is still
+**not written**:
 
 | Referenced in README | Exists? | Purpose when created |
 | --- | --- | --- |
@@ -33,40 +39,49 @@ those files are **not yet written**:
 | `.github/GITHUB_APP_MANIFEST.json` | No | App manifest (permissions, webhook, events) |
 | `CONTRIBUTING.md` | No | Contributor and agent guidelines |
 | `CODEOWNERS` | No | Review ownership routing |
-| `.github/workflows/*.yml` | No | Checks on agent-created PRs |
+| `.github/workflows/ci.yml` | **Yes** | Lint + test on pushes and PRs |
 
 Treat that table as the backlog. When a task touches one of those items, create
 the file rather than assuming it is somewhere you haven't looked. When you do
 create one, update the table above so this file stays accurate.
 
-Because the tree is nearly empty, **verify before you generalize**: a quick
-`git ls-files` is cheaper than an assumption about structure that no longer holds
-once real code lands.
+The tree is still small, so **verify before you generalize**: a quick
+`git ls-files` is cheaper than an assumption about structure that no longer
+holds once more code lands.
 
 ## Working conventions
 
 ### Language and tooling
 
-No language has been committed to yet. Whatever the first substantive change
-picks, establish it deliberately and record it here:
+**Python 3.10+**, linted and formatted with **ruff**, tested with **pytest**.
+Stay on it unless there is a concrete reason not to.
 
-- Add a dependency manifest at the repo root (`package.json`, `pyproject.toml`,
-  or equivalent) in the same change that adds the first source file.
-- Add a runnable check (linter and/or tests) in that same change, and wire it
-  into `.github/workflows/` so agent-authored PRs are actually verified.
-- Then replace the "Commands" section below with the real commands.
+Two rules the first change established, worth keeping:
+
+- New code ships with its own runnable check in the same change, wired into
+  `.github/workflows/ci.yml` so agent-authored PRs are actually verified.
+- Keep the dependency floor low. `scripts/face_agent.py` is stdlib-only at its
+  core and imports opencv/dlib lazily inside the backends, which is why the
+  test suite runs in CI with neither installed. Anything new that needs a heavy
+  dependency should isolate it the same way.
 
 Prefer the standard, boring choice for the ecosystem over anything clever — this
 repo's audience is other agents, and predictable layout matters more than taste.
 
 ### Commands
 
-None yet. There is nothing to install, build, lint, or test. Do not invent
-commands or claim a check passed when no check exists; say plainly that the repo
-has no test suite.
+```bash
+pip install -r requirements-dev.txt   # dev setup (adds pytest, ruff, pyinstaller)
+pytest                                # full suite; needs no camera or vision libs
+ruff check .                          # lint
+ruff format --check .                 # formatting (CI runs this too)
 
-Once tooling lands, document the exact invocations here (install, lint,
-typecheck, test, run) so future sessions don't have to rediscover them.
+python scripts/face_agent.py doctor   # face-agent health check
+python scripts/build_executable.py    # freeze to dist/face-agent[.exe]
+```
+
+There is no typecheck step. Do not invent commands or claim a check passed when
+you have not run it.
 
 ### Layout for new code
 
@@ -75,6 +90,7 @@ When adding the first real code, keep the root uncluttered:
 - `.github/` — App manifest, workflows, issue/PR templates, `CODEOWNERS`.
 - `scripts/` — standalone operational scripts agents run.
 - `src/` (or the ecosystem's convention) — reusable library code.
+- `tests/` — pytest suite, mirroring the module under test.
 - `docs/` — anything longer than a section of `README.md`.
 
 ### Secrets
