@@ -180,14 +180,22 @@ tool-calling loop:
 ```python
 import json, subprocess
 
-tools = json.loads(subprocess.run(
-    ["face-agent", "schema"], capture_output=True, text=True, check=True).stdout)
+tools = json.loads(
+    subprocess.run(["face-agent", "schema"], capture_output=True, text=True, check=True).stdout
+)
+
 
 def call_tool(name, args):
     proc = subprocess.run(
-        ["face-agent", name.removeprefix("face_"), "--json",
-         *sum((["--" + k, str(v)] for k, v in args.items()), [])],
-        capture_output=True, text=True)
+        [
+            "face-agent",
+            name.removeprefix("face_"),
+            "--json",
+            *sum((["--" + k, str(v)] for k, v in args.items()), []),
+        ],
+        capture_output=True,
+        text=True,
+    )
     return json.loads(proc.stdout)
 ```
 

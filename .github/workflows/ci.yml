@@ -30,7 +30,11 @@ jobs:
         # The test suite deliberately runs without opencv or dlib: the core is
         # stdlib-only and the vision backends are faked. That keeps CI fast and
         # proves the script degrades cleanly when no backend is installed.
-        run: python -m pip install --upgrade pip pytest ruff
+        #
+        # ruff is pinned: it formats Python inside Markdown code blocks too, and
+        # an unpinned formatter turns PRs red on a new release with no code
+        # change. Bump this deliberately, with the reformat in the same commit.
+        run: python -m pip install --upgrade pip "ruff==0.16.8" "pytest>=7.4"
 
       - name: Lint
         run: ruff check .

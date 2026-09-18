@@ -1,4 +1,6 @@
 -r requirements.txt
 pytest>=7.4
-ruff>=0.5
+# Pinned to match .github/workflows/ci.yml — ruff's formatter output is
+# version-dependent, and it formats Python inside Markdown code blocks.
+ruff==0.16.8
 pyinstaller>=6.0
