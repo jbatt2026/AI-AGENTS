@@ -1,0 +1,36 @@
+#!/bin/bash
+# Pre-commit hook to prevent accidental commits of secrets and .env files
+# Install: git config --local core.hooksPath .githooks
+
+set -e
+
+echo "🔒 Running pre-commit secret scan..."
+
+# Prevent .env.local from being committed
+if git diff --cached --name-only | grep -q "\.env\.local\|\.env\.*.local"; then
+  echo "❌ ERROR: Attempted to commit .env.local or .env file!"
+  echo "   These files may contain secrets and should NEVER be committed."
+  echo "   If you meant to commit .env.example, use: git add .env.example"
+  exit 1
+fi
+
+# Scan staged files for private keys
+if git diff --cached | grep -q "BEGIN RSA PRIVATE KEY\|BEGIN EC PRIVATE KEY\|BEGIN OPENSSH PRIVATE KEY"; then
+  echo "❌ ERROR: Found private key in staged changes!"
+  echo "   Do not commit .pem files. Store them in GitHub Secrets or your key manager."
+  exit 1
+fi
+
+# Scan for hardcoded credentials (warning level)
+if git diff --cached | grep -E "api[_-]?key\s*[:=]\s*['\"]?[A-Za-z0-9_-]{20,}" | grep -v ".env.example"; then
+  echo "⚠️  WARNING: Possible API key detected in staged changes"
+  echo "   Review above lines before committing. Press Ctrl+C to abort, or Enter to continue."
+  read -p "Continue anyway? (y/N) " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    exit 1
+  fi
+fi
+
+echo "✅ Pre-commit checks passed!"
+exit 0

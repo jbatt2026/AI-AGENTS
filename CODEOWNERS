@@ -1,0 +1,13 @@
+# Review ownership routing for AI-AGENTS
+
+# Global repo owners
+*       @jbatt2026
+
+# GitHub App and Agent manifests
+/.github/                     @jbatt2026
+/INSTALL_GITHUB_APP.md        @jbatt2026
+/CLAUDE.md                    @jbatt2026
+
+# Application source and tools
+/src/                         @jbatt2026
+/package.json                 @jbatt2026

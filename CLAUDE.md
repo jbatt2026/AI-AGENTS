@@ -14,13 +14,18 @@ The repository is **public**. Assume anything committed here is world-readable.
 
 ## Current state — read this first
 
-The repo holds one tool so far — `face-agent`, a local facial recognition
-service that agents call over MCP or a loopback HTTP API:
+The repo now holds two independent things. They share a root but not a
+toolchain, so check which one a task belongs to before assuming a command.
+
+**1. A TypeScript / Vite / React web app** at the root — the GitHub App
+workbench (`src/`, `index.html`, `package.json`, `vite.config.ts`), plus the
+App manifest and install docs.
+
+**2. `face-agent`**, a Python tool under `scripts/` — local facial recognition
+that agents call over MCP or a loopback HTTP API:
 
 ```
-README.md                    # repo purpose and agent guidance
-CLAUDE.md                    # this file
-pyproject.toml               # project metadata, ruff + pytest config
+pyproject.toml               # Python metadata, ruff + pytest config
 requirements.txt             # runtime deps (opencv backend)
 requirements-dev.txt         # + pytest, ruff, pyinstaller
 scripts/face_agent.py        # the tool: CLI, HTTP API, MCP server
@@ -30,20 +35,21 @@ docs/FACE_AGENT.md           # install, usage, agent integration
 .github/workflows/ci.yml     # ruff + pytest on 3.10/3.11/3.12
 ```
 
-The GitHub App machinery the README describes in the present tense is still
-**not written**:
+The two CI workflows are deliberately separate: `agent-pr-check.yml` builds the
+web app, `ci.yml` lints and tests the Python. Neither runs the other's tooling.
+
+The files the README references now exist:
 
 | Referenced in README | Exists? | Purpose when created |
 | --- | --- | --- |
-| `INSTALL_GITHUB_APP.md` | No | Step-by-step GitHub App install/config |
-| `.github/GITHUB_APP_MANIFEST.json` | No | App manifest (permissions, webhook, events) |
-| `CONTRIBUTING.md` | No | Contributor and agent guidelines |
-| `CODEOWNERS` | No | Review ownership routing |
-| `.github/workflows/ci.yml` | **Yes** | Lint + test on pushes and PRs |
+| `INSTALL_GITHUB_APP.md` | Yes | Step-by-step GitHub App install/config |
+| `.github/GITHUB_APP_MANIFEST.json` | Yes | App manifest (permissions, webhook, events) |
+| `CONTRIBUTING.md` | Yes | Contributor and agent guidelines |
+| `CODEOWNERS` | Yes | Review ownership routing |
+| `.github/workflows/agent-pr-check.yml` | Yes | Checks on agent-created PRs |
+| `.github/workflows/ci.yml` | Yes | Lint + test the Python under `scripts/` |
 
-Treat that table as the backlog. When a task touches one of those items, create
-the file rather than assuming it is somewhere you haven't looked. When you do
-create one, update the table above so this file stays accurate.
+When you add another entry, update the table above so this file stays accurate.
 
 The tree is still small, so **verify before you generalize**: a quick
 `git ls-files` is cheaper than an assumption about structure that no longer
@@ -53,25 +59,54 @@ holds once more code lands.
 
 ### Language and tooling
 
-**Python 3.10+**, linted and formatted with **ruff**, tested with **pytest**.
-Stay on it unless there is a concrete reason not to.
+**The web app** uses a standard TypeScript / Vite / React stack with Node.js 22 runtime:
 
-Two rules the first change established, worth keeping:
-
-- New code ships with its own runnable check in the same change, wired into
-  `.github/workflows/ci.yml` so agent-authored PRs are actually verified.
-- Keep the dependency floor low. `scripts/face_agent.py` is stdlib-only at its
-  core and imports opencv/dlib lazily inside the backends, which is why the
-  test suite runs in CI with neither installed. Anything new that needs a heavy
-  dependency should isolate it the same way.
-
-Prefer the standard, boring choice for the ecosystem over anything clever — this
-repo's audience is other agents, and predictable layout matters more than taste.
+- Dependency manifest: `package.json`
+- Build command: `npm run build`
+- Dev server: `npm run dev` (starts on port 3000, host localhost by default; use `VITE_HOST=0.0.0.0` to expose to network)
+- Continuous Integration: `.github/workflows/agent-pr-check.yml`
 
 ### Commands
 
+Documented invocations:
+- `npm install` — install dependencies
+- `npm run dev` — start local development server at `http://localhost:3000` (restricted to localhost by default for security)
+- `npm run build` — typecheck and compile production bundle into `dist/`
+- `npm run preview` — preview production build locally
+
+For network access (shared/cloud environments), set environment variables:
 ```bash
-pip install -r requirements-dev.txt   # dev setup (adds pytest, ruff, pyinstaller)
+VITE_HOST=0.0.0.0 npm run dev    # Expose to network (use only on trusted networks)
+VITE_PORT=5000 npm run dev       # Use custom port
+```
+
+### Environment Setup
+
+Before developing locally:
+
+```bash
+# Copy template and add your credentials (ONLY to .env.local, which is .gitignored)
+cp .env.example .env.local
+
+# Enable pre-commit secret scanning hook
+git config --local core.hooksPath .githooks
+chmod +x .githooks/pre-commit  # On Unix/macOS
+```
+
+The `.env.local` file is git-ignored and safe for local development. For CI/CD:
+- Use GitHub Secrets (Settings > Secrets > Actions) for GitHub Actions workflows
+- Use your cloud platform's secret manager (AWS Secrets Manager, GCP Secret Manager) for deployed services
+- Never commit `.env.local`, `.env.pem`, or any credential files
+
+### Python tooling (`scripts/`, `tests/`)
+
+**Python 3.10+**, linted and formatted with **ruff**, tested with **pytest**.
+Config lives in `pyproject.toml`. This is separate from the web app's
+toolchain — `npm run build` does not touch it and `pytest` does not touch the
+web app.
+
+```bash
+pip install -r requirements-dev.txt   # adds pytest, ruff, pyinstaller
 pytest                                # full suite; needs no camera or vision libs
 ruff check .                          # lint
 ruff format --check .                 # formatting (CI runs this too)
@@ -80,26 +115,47 @@ python scripts/face_agent.py doctor   # face-agent health check
 python scripts/build_executable.py    # freeze to dist/face-agent[.exe]
 ```
 
-There is no typecheck step. Do not invent commands or claim a check passed when
-you have not run it.
+There is no Python typecheck step. Do not invent commands or claim a check
+passed when you have not run it.
+
+Two conventions worth keeping:
+
+- New code ships with its own runnable check in the same change, wired into a
+  workflow so agent-authored PRs are actually verified.
+- Keep the dependency floor low. `scripts/face_agent.py` is stdlib-only at its
+  core and imports opencv/dlib lazily inside the backends, which is why its
+  tests run in CI with neither installed. Anything new needing a heavy
+  dependency should isolate it the same way.
 
 ### Layout for new code
 
-When adding the first real code, keep the root uncluttered:
+Keep the root uncluttered:
 
 - `.github/` — App manifest, workflows, issue/PR templates, `CODEOWNERS`.
+- `.githooks/` — Git hooks for local development (pre-commit secret scanning)
 - `scripts/` — standalone operational scripts agents run.
-- `src/` (or the ecosystem's convention) — reusable library code.
+- `src/` — the web app's TypeScript source.
 - `tests/` — pytest suite, mirroring the module under test.
 - `docs/` — anything longer than a section of `README.md`.
 
-### Secrets
+### Secrets & Credential Safety
 
 This repo is about credentialed automation, so the rule is strict: **never**
 commit App private keys (`.pem`), installation tokens, webhook secrets,
 `.env` files, or any live credential. Reference them as environment variables
 or GitHub Actions secrets and document the variable names only. If you find a
 committed secret, stop and flag it rather than quietly rewriting history.
+
+**Local Protection:**
+- `.env.local`, `*.pem`, and `.env.*local` are git-ignored (see `.gitignore`)
+- Pre-commit hook (in `.githooks/pre-commit`) scans staged changes for secrets before commit
+- CI workflow scans for private keys, API keys, tokens, and AWS credentials
+
+**Setup:**
+After cloning, enable the pre-commit hook:
+```bash
+git config --local core.hooksPath .githooks
+```
 
 ## Git workflow
 
