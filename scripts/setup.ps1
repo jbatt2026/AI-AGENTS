@@ -36,13 +36,16 @@ function Write-Fail($Message) { Write-Host "`nerror: $Message" -ForegroundColor 
 # --- 1. Python ------------------------------------------------------------
 Write-Step 'Checking Python'
 $Python = $null
-foreach ($candidate in @('python', 'python3', 'py')) {
-    $found = Get-Command $candidate -ErrorAction SilentlyContinue
-    if (-not $found) { continue }
-    # 'py' needs an explicit version selector to avoid launching Python 2.
-    $exe = if ($candidate -eq 'py') { @('py', '-3') } else { @($candidate) }
-    & $exe[0] $exe[1..($exe.Length - 1)] -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>$null
-    if ($LASTEXITCODE -eq 0) { $Python = $exe; break }
+$VersionProbe = 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'
+# Each candidate is @(executable, extra args...). 'py' needs an explicit
+# version selector so it cannot pick a Python 2 install.
+foreach ($spec in 'python', 'python3', 'py -3') {
+    $parts = $spec -split ' '
+    $exe = $parts[0]
+    $exeArgs = @($parts | Select-Object -Skip 1)
+    if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) { continue }
+    & $exe @exeArgs -c $VersionProbe 2>$null
+    if ($LASTEXITCODE -eq 0) { $Python = $parts; break }
 }
 if (-not $Python) {
     Write-Fail @'
@@ -52,7 +55,7 @@ during setup, then open a NEW terminal and re-run this script.
 '@
 }
 $PythonCmd = $Python[0]
-$PythonArgs = if ($Python.Length -gt 1) { $Python[1..($Python.Length - 1)] } else { @() }
+$PythonArgs = @($Python | Select-Object -Skip 1)
 $version = (& $PythonCmd @PythonArgs --version) 2>&1
 Write-Host "using $version"
 
