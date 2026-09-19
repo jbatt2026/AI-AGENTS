@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import face_agent as fa
 import pytest
@@ -349,3 +350,84 @@ def test_identify_from_a_stream_never_logs_the_password(
     assert "hunter2" not in json.dumps(result)
     assert result["best_match"]["name"] == "Jane"
     assert "hunter2" not in json.dumps(store.recent_events())
+
+
+def test_build_rtsp_url_encodes_awkward_credentials() -> None:
+    """Camera passwords often contain @ : / — unencoded they split the URL."""
+    url = fa.build_rtsp_url("192.168.1.50", 554, "admin", "p@ss/w:rd", "/stream1")
+    assert url == "rtsp://admin:p%40ss%2Fw%3Ard@192.168.1.50:554/stream1"
+    assert urlsplit(url).hostname == "192.168.1.50"
+    assert urlsplit(url).port == 554
+
+
+def test_build_rtsp_url_without_credentials() -> None:
+    assert fa.build_rtsp_url("10.0.0.5", 554, path="/live") == "rtsp://10.0.0.5:554/live"
+
+
+def test_build_rtsp_url_adds_the_leading_slash() -> None:
+    assert fa.build_rtsp_url("10.0.0.5", 554, path="live").endswith("/live")
+
+
+def test_common_rtsp_paths_are_usable() -> None:
+    assert len(fa.COMMON_RTSP_PATHS) >= 10
+    assert len(set(fa.COMMON_RTSP_PATHS)) == len(fa.COMMON_RTSP_PATHS), "duplicate paths"
+    assert all(path.startswith("/") for path in fa.COMMON_RTSP_PATHS)
+
+
+def test_probe_stream_reports_the_one_that_works(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only a path that opens AND delivers a frame counts as working."""
+    pytest.importorskip("cv2")
+    import cv2
+
+    class FakeCapture:
+        def __init__(self, url, *args):
+            self.url = url
+
+        def set(self, *args):
+            return True
+
+        def isOpened(self):
+            # One path opens but never yields a frame; it must not be reported.
+            return "/stream1" in self.url or "/live" in self.url
+
+        def read(self):
+            return ("/stream1" in self.url, object())
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", FakeCapture)
+    result = fa.op_probe_stream(
+        "192.168.1.50", user="admin", password="secret", emit=lambda line: None
+    )
+
+    assert result["ok"] is True
+    assert result["working_paths"] == ["/stream1"]
+    assert "secret" not in json.dumps(result), "probe output must not carry the password"
+    assert result["urls"] == ["rtsp://***@192.168.1.50:554/stream1"]
+
+
+def test_probe_stream_reports_nothing_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("cv2")
+    import cv2
+
+    class DeadCapture:
+        def __init__(self, url, *args):
+            pass
+
+        def set(self, *args):
+            return True
+
+        def isOpened(self):
+            return False
+
+        def read(self):
+            return False, None
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", DeadCapture)
+    result = fa.op_probe_stream("10.0.0.9", emit=lambda line: None)
+    assert result["ok"] is False
+    assert result["working_paths"] == []

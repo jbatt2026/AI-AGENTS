@@ -978,6 +978,106 @@ def op_download_models(dest: Path | None = None) -> dict[str, Any]:
     }
 
 
+# Stream paths seen across common OEM and mainstream cameras. Many budget
+# cameras are rebadged hardware whose documentation names no path at all, so
+# probing beats guessing.
+COMMON_RTSP_PATHS = [
+    "/stream1",
+    "/stream2",
+    "/live",
+    "/live/ch0",
+    "/live/ch00_0",
+    "/11",
+    "/12",
+    "/onvif1",
+    "/onvif2",
+    "/h264Preview_01_main",
+    "/h264Preview_01_sub",
+    "/Streaming/Channels/101",
+    "/Streaming/Channels/102",
+    "/cam/realmonitor?channel=1&subtype=0",
+    "/cam/realmonitor?channel=1&subtype=1",
+    "/ch0_0.h264",
+    "/videoMain",
+    "/video1",
+    "/av0_0",
+    "/media/video1",
+    "/1/h264major",
+    "/0",
+]
+
+
+def build_rtsp_url(
+    host: str, port: int = 554, user: str = "", password: str = "", path: str = "/"
+) -> str:
+    """Assemble an RTSP URL, percent-encoding the credentials.
+
+    Camera passwords routinely contain @ / : and other characters that would
+    otherwise split the URL in the wrong place.
+    """
+    credentials = ""
+    if user or password:
+        credentials = (
+            f"{urllib.parse.quote(user, safe='')}:{urllib.parse.quote(password, safe='')}@"
+        )
+    if not path.startswith("/"):
+        path = "/" + path
+    return f"rtsp://{credentials}{host}:{port}{path}"
+
+
+def op_probe_stream(
+    host: str,
+    port: int = 554,
+    user: str = "",
+    password: str = "",
+    paths: Sequence[str] | None = None,
+    timeout_ms: int = 4000,
+    emit: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Try the usual stream paths on a camera and report which ones open.
+
+    Returns the working URLs with credentials redacted; the caller still has
+    the password it passed in, and this output is meant to be safe to paste.
+    """
+    try:
+        import cv2
+    except Exception as exc:
+        raise FaceAgentError("probing needs opencv: pip install opencv-python") from exc
+
+    emit = emit or (lambda line: print(line, flush=True))
+    candidates = list(paths) if paths else COMMON_RTSP_PATHS
+    working: list[str] = []
+
+    emit(f"Trying {len(candidates)} common paths on {host}:{port} — this takes a minute.")
+    for path in candidates:
+        url = build_rtsp_url(host, port, user, password, path)
+        cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+        for prop in ("CAP_PROP_OPEN_TIMEOUT_MSEC", "CAP_PROP_READ_TIMEOUT_MSEC"):
+            if hasattr(cv2, prop):
+                cap.set(getattr(cv2, prop), timeout_ms)
+        opened = cap.isOpened()
+        got_frame = False
+        if opened:
+            got_frame = bool(cap.read()[0])
+        cap.release()
+        if opened and got_frame:
+            working.append(path)
+            emit(f"  [WORKS] {path}")
+        else:
+            emit(f"  [  no ] {path}")
+
+    return {
+        "ok": bool(working),
+        "host": host,
+        "port": port,
+        "tried": len(candidates),
+        "working_paths": working,
+        "urls": [
+            redact_source(build_rtsp_url(host, port, user, password, path)) for path in working
+        ],
+    }
+
+
 def op_watch(
     store: FaceStore,
     backend: Backend,
@@ -1556,6 +1656,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     watch.add_argument("--limit", type=int, default=0, help="Stop after N events (0 = run forever)")
 
+    probe = add("probe-stream", "Find a network camera's RTSP path by trying common ones")
+    probe.add_argument("--host", required=True, help="Camera IP, e.g. 192.168.1.50")
+    probe.add_argument("--port", type=int, default=554)
+    probe.add_argument("--user", default="", help="Camera username")
+    probe.add_argument("--password", default="", help="Camera password")
+    probe.add_argument("--timeout", type=int, default=4000, help="Milliseconds to wait per path")
+
     events = add("events", "Show recent recognition events")
     events.add_argument("--limit", type=int, default=20)
 
@@ -1596,6 +1703,31 @@ def main(argv: Sequence[str] | None = None) -> int:
                         + (f" ({r['error']})" if r.get("error") else "")
                         for r in d["results"]
                     ]
+                ),
+            )
+
+        if args.command == "probe-stream":
+            result = op_probe_stream(
+                args.host,
+                args.port,
+                args.user,
+                args.password,
+                timeout_ms=args.timeout,
+                emit=(lambda line: None) if args.json else None,
+            )
+            return emit(
+                result,
+                args.json,
+                lambda d: (
+                    "\nWorking stream URLs (your password goes where the *** is):\n  "
+                    + "\n  ".join(d["urls"])
+                    if d["urls"]
+                    else (
+                        f"\nNone of the {d['tried']} common paths worked on "
+                        f"{d['host']}:{d['port']}.\nCheck the IP is right and the "
+                        "camera has RTSP enabled, then look for the path in its app "
+                        "or web page."
+                    )
                 ),
             )
 
