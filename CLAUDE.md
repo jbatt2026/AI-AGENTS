@@ -14,18 +14,33 @@ The repository is **public**. Assume anything committed here is world-readable.
 
 ## Current state — read this first
 
-This repo is a scaffold. As of the latest commit it contains exactly two files:
+The repo now holds two independent things. They share a root but not a
+toolchain, so check which one a task belongs to before assuming a command.
+
+**1. A TypeScript / Vite / React web app** at the root — the GitHub App
+workbench (`src/`, `index.html`, `package.json`, `vite.config.ts`), plus the
+App manifest and install docs.
+
+**2. `face-agent`**, a Python tool under `scripts/` — local facial recognition
+that agents call over MCP or a loopback HTTP API:
 
 ```
-README.md     # repo purpose and agent guidance
-CLAUDE.md     # this file
+pyproject.toml               # Python metadata, ruff + pytest config
+requirements.txt             # runtime deps (opencv backend)
+requirements-dev.txt         # + pytest, ruff, pyinstaller
+scripts/face_agent.py        # the tool: CLI, HTTP API, MCP server
+scripts/build_executable.py  # PyInstaller wrapper -> dist/face-agent[.exe]
+scripts/setup.sh             # one-command install (macOS/Linux)
+scripts/setup.ps1            # one-command install (Windows)
+tests/                       # pytest suite, no camera or vision libs needed
+docs/FACE_AGENT.md           # install, usage, agent integration
+.github/workflows/ci.yml     # ruff + pytest on 3.10/3.11/3.12
 ```
 
-There is **no source code, no package manifest, no test suite, no CI, and no
-build system yet.** Do not report or assume otherwise.
+The two CI workflows are deliberately separate: `agent-pr-check.yml` builds the
+web app, `ci.yml` lints and tests the Python. Neither runs the other's tooling.
 
-`README.md` describes the repo's intended contents in the present tense, but
-those files are **not yet written**:
+The files the README references now exist:
 
 | Referenced in README | Exists? | Purpose when created |
 | --- | --- | --- |
@@ -34,20 +49,19 @@ those files are **not yet written**:
 | `CONTRIBUTING.md` | Yes | Contributor and agent guidelines |
 | `CODEOWNERS` | Yes | Review ownership routing |
 | `.github/workflows/agent-pr-check.yml` | Yes | Checks on agent-created PRs |
+| `.github/workflows/ci.yml` | Yes | Lint + test the Python under `scripts/` |
 
-Treat that table as the backlog. When a task touches one of those items, create
-the file rather than assuming it is somewhere you haven't looked. When you do
-create one, update the table above so this file stays accurate.
+When you add another entry, update the table above so this file stays accurate.
 
-Because the tree is nearly empty, **verify before you generalize**: a quick
-`git ls-files` is cheaper than an assumption about structure that no longer holds
-once real code lands.
+The tree is still small, so **verify before you generalize**: a quick
+`git ls-files` is cheaper than an assumption about structure that no longer
+holds once more code lands.
 
 ## Working conventions
 
 ### Language and tooling
 
-The project uses a standard TypeScript / Vite / React stack with Node.js 22 runtime:
+**The web app** uses a standard TypeScript / Vite / React stack with Node.js 22 runtime:
 
 - Dependency manifest: `package.json`
 - Build command: `npm run build`
@@ -86,14 +100,44 @@ The `.env.local` file is git-ignored and safe for local development. For CI/CD:
 - Use your cloud platform's secret manager (AWS Secrets Manager, GCP Secret Manager) for deployed services
 - Never commit `.env.local`, `.env.pem`, or any credential files
 
+### Python tooling (`scripts/`, `tests/`)
+
+**Python 3.10+**, linted and formatted with **ruff**, tested with **pytest**.
+Config lives in `pyproject.toml`. This is separate from the web app's
+toolchain — `npm run build` does not touch it and `pytest` does not touch the
+web app.
+
+```bash
+pip install -r requirements-dev.txt   # adds pytest, ruff, pyinstaller
+pytest                                # full suite; needs no camera or vision libs
+ruff check .                          # lint
+ruff format --check .                 # formatting (CI runs this too)
+
+python scripts/face_agent.py doctor   # face-agent health check
+python scripts/build_executable.py    # freeze to dist/face-agent[.exe]
+```
+
+There is no Python typecheck step. Do not invent commands or claim a check
+passed when you have not run it.
+
+Two conventions worth keeping:
+
+- New code ships with its own runnable check in the same change, wired into a
+  workflow so agent-authored PRs are actually verified.
+- Keep the dependency floor low. `scripts/face_agent.py` is stdlib-only at its
+  core and imports opencv/dlib lazily inside the backends, which is why its
+  tests run in CI with neither installed. Anything new needing a heavy
+  dependency should isolate it the same way.
+
 ### Layout for new code
 
-When adding the first real code, keep the root uncluttered:
+Keep the root uncluttered:
 
 - `.github/` — App manifest, workflows, issue/PR templates, `CODEOWNERS`.
 - `.githooks/` — Git hooks for local development (pre-commit secret scanning)
 - `scripts/` — standalone operational scripts agents run.
-- `src/` (or the ecosystem's convention) — reusable library code.
+- `src/` — the web app's TypeScript source.
+- `tests/` — pytest suite, mirroring the module under test.
 - `docs/` — anything longer than a section of `README.md`.
 
 ### Secrets & Credential Safety

@@ -8,6 +8,15 @@ dist/
 build/
 *.tsbuildinfo
 
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+venv/
+
 # IDE
 .vscode/
 .idea/
@@ -22,6 +31,12 @@ build/
 .env.*.local
 .env.pem
 *.pem
+
+# Never commit face data, API tokens, or downloaded models (see scripts/face_agent.py)
+*.db
+*.onnx
+.face_agent/
+token
 
 # Logs
 npm-debug.log*

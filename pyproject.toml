@@ -1,0 +1,42 @@
+[project]
+name = "face-agent"
+version = "0.1.0"
+description = "Local facial recognition service exposed to AI agents over HTTP and MCP"
+readme = "docs/FACE_AGENT.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+# The default backend: pip-installable on Windows with no compiler.
+sface = ["opencv-python>=4.7", "numpy>=1.21"]
+# Higher accuracy, but dlib needs cmake and a C++ toolchain.
+dlib = ["face_recognition>=1.3", "opencv-python>=4.7", "numpy>=1.21"]
+dev = ["pytest>=7.4", "ruff==0.16.8"]  # ruff pinned: see requirements-dev.txt
+build = ["pyinstaller>=6.0"]
+
+[project.scripts]
+face-agent = "face_agent:main"
+
+[tool.setuptools]
+script-files = ["scripts/face_agent.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts", "tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    "E501",    # long lines are caught by the formatter, not the linter
+    "SIM105",  # contextlib.suppress is not always clearer than try/except
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]  # conftest adjusts sys.path before importing the script

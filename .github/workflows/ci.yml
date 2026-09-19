@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Pushes made with a GitHub App installation token do not start workflow
+  # runs, so agent-authored branches need a way to run this on demand.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dev tooling
+        # The test suite deliberately runs without opencv or dlib: the core is
+        # stdlib-only and the vision backends are faked. That keeps CI fast and
+        # proves the script degrades cleanly when no backend is installed.
+        #
+        # ruff is pinned: it formats Python inside Markdown code blocks too, and
+        # an unpinned formatter turns PRs red on a new release with no code
+        # change. Bump this deliberately, with the reformat in the same commit.
+        run: python -m pip install --upgrade pip "ruff==0.16.8" "pytest>=7.4"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Format check
+        run: ruff format --check .
+
+      - name: Test
+        run: pytest
