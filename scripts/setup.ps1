@@ -1,0 +1,128 @@
+<#
+.SYNOPSIS
+    One-command setup for face-agent on Windows.
+
+.DESCRIPTION
+    Creates a virtual environment, installs the dependencies, downloads the
+    face models, and runs the health check. Safe to re-run: it skips what is
+    already in place.
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Exe
+    Also builds dist\face-agent.exe so it runs without Python.
+#>
+[CmdletBinding()]
+param(
+    # Skip the virtual environment and install into the current Python.
+    [switch]$NoVenv,
+    # Also install the dlib backend. Needs cmake and a C++ compiler.
+    [switch]$Dlib,
+    # Also build a standalone dist\face-agent.exe with PyInstaller.
+    [switch]$Exe
+)
+
+$ErrorActionPreference = 'Stop'
+
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$VenvDir = Join-Path $RepoRoot '.venv'
+$Agent = Join-Path $RepoRoot 'scripts\face_agent.py'
+
+function Write-Step($Message) { Write-Host "`n==> $Message" -ForegroundColor Cyan }
+function Write-Fail($Message) { Write-Host "`nerror: $Message" -ForegroundColor Red; exit 1 }
+
+# --- 1. Python ------------------------------------------------------------
+Write-Step 'Checking Python'
+$Python = $null
+foreach ($candidate in @('python', 'python3', 'py')) {
+    $found = Get-Command $candidate -ErrorAction SilentlyContinue
+    if (-not $found) { continue }
+    # 'py' needs an explicit version selector to avoid launching Python 2.
+    $exe = if ($candidate -eq 'py') { @('py', '-3') } else { @($candidate) }
+    & $exe[0] $exe[1..($exe.Length - 1)] -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>$null
+    if ($LASTEXITCODE -eq 0) { $Python = $exe; break }
+}
+if (-not $Python) {
+    Write-Fail @'
+need Python 3.10 or newer on PATH.
+Install it from https://python.org/downloads and tick "Add Python to PATH"
+during setup, then open a NEW terminal and re-run this script.
+'@
+}
+$PythonCmd = $Python[0]
+$PythonArgs = if ($Python.Length -gt 1) { $Python[1..($Python.Length - 1)] } else { @() }
+$version = (& $PythonCmd @PythonArgs --version) 2>&1
+Write-Host "using $version"
+
+# --- 2. Environment -------------------------------------------------------
+if (-not $NoVenv) {
+    Write-Step 'Creating the virtual environment'
+    if (Test-Path $VenvDir) {
+        Write-Host "$VenvDir already exists, reusing it"
+    } else {
+        & $PythonCmd @PythonArgs -m venv $VenvDir
+        if ($LASTEXITCODE -ne 0) { Write-Fail 'could not create a virtual environment' }
+    }
+    $PythonCmd = Join-Path $VenvDir 'Scripts\python.exe'
+    $PythonArgs = @()
+    if (-not (Test-Path $PythonCmd)) { Write-Fail "virtual environment looks broken: $PythonCmd is missing" }
+}
+
+# --- 3. Dependencies ------------------------------------------------------
+Write-Step 'Installing dependencies'
+& $PythonCmd @PythonArgs -m pip install --quiet --upgrade pip
+& $PythonCmd @PythonArgs -m pip install --quiet -r (Join-Path $RepoRoot 'requirements.txt')
+if ($LASTEXITCODE -ne 0) { Write-Fail 'dependency install failed (see the pip output above)' }
+
+if ($Dlib) {
+    Write-Host 'installing the dlib backend - this compiles and can take several minutes'
+    & $PythonCmd @PythonArgs -m pip install 'face_recognition>=1.3'
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail 'dlib install failed. It needs cmake and Visual C++ Build Tools; the default sface backend does not.'
+    }
+}
+Write-Host 'done'
+
+# --- 4. Models ------------------------------------------------------------
+Write-Step 'Downloading the face models (~40 MB, once)'
+& $PythonCmd @PythonArgs $Agent models --download
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail 'model download failed. Check your internet connection and re-run.'
+}
+
+# --- 5. Optional executable ----------------------------------------------
+if ($Exe) {
+    Write-Step 'Building dist\face-agent.exe'
+    & $PythonCmd @PythonArgs -m pip install --quiet pyinstaller
+    & $PythonCmd @PythonArgs (Join-Path $RepoRoot 'scripts\build_executable.py')
+    if ($LASTEXITCODE -ne 0) { Write-Fail 'the PyInstaller build failed (see the output above)' }
+}
+
+# --- 6. Verify ------------------------------------------------------------
+Write-Step 'Health check'
+& $PythonCmd @PythonArgs $Agent doctor
+$doctorStatus = $LASTEXITCODE
+
+if ($doctorStatus -ne 0) {
+    Write-Host "`nSetup finished but no backend is usable yet - see the report above." -ForegroundColor Yellow
+    exit $doctorStatus
+}
+
+$run = "$PythonCmd `"$Agent`""
+Write-Host "`nReady." -ForegroundColor Green
+Write-Host @"
+
+Run it with:
+
+  $run enroll --name "Your Name" --camera --shots 5
+  $run identify --camera
+  $run list
+
+Connect an AI agent over MCP:
+
+  claude mcp add face-agent -- $PythonCmd "$Agent" mcp
+
+Only enroll people who have agreed to it - face templates are biometric data.
+"@

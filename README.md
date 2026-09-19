@@ -19,11 +19,16 @@ Enroll faces, identify them from a photo or webcam, and expose that to an AI
 agent as a set of tools. Everything stays on the machine — embeddings live in a
 local SQLite file and the HTTP API binds to loopback with a bearer token.
 
-```bash
-pip install -r requirements.txt
-python scripts/face_agent.py models --download
-python scripts/face_agent.py doctor
+Set it up with one command — `scripts\setup.ps1` on Windows,
+`scripts/setup.sh` on macOS and Linux:
 
+```bash
+bash scripts/setup.sh          # or: powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+```
+
+Then:
+
+```bash
 python scripts/face_agent.py enroll --name "Jane" --images ./photos/jane
 python scripts/face_agent.py identify --camera --json
 ```

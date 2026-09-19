@@ -30,6 +30,8 @@ requirements.txt             # runtime deps (opencv backend)
 requirements-dev.txt         # + pytest, ruff, pyinstaller
 scripts/face_agent.py        # the tool: CLI, HTTP API, MCP server
 scripts/build_executable.py  # PyInstaller wrapper -> dist/face-agent[.exe]
+scripts/setup.sh             # one-command install (macOS/Linux)
+scripts/setup.ps1            # one-command install (Windows)
 tests/                       # pytest suite, no camera or vision libs needed
 docs/FACE_AGENT.md           # install, usage, agent integration
 .github/workflows/ci.yml     # ruff + pytest on 3.10/3.11/3.12

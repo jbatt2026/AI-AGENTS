@@ -32,10 +32,30 @@ Two technical limits worth knowing up front:
 
 ## Install
 
-### 1. Get Python and the dependencies
+You need Python 3.10 or newer. On Windows, install it from
+[python.org/downloads](https://python.org/downloads) and tick *"Add Python to
+PATH"* during setup, then open a new terminal.
 
-Python 3.10 or newer. On Windows, install from python.org and tick *"Add
-Python to PATH"*.
+### The one-command path
+
+**Windows (PowerShell):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+```
+
+**macOS / Linux:**
+
+```bash
+bash scripts/setup.sh
+```
+
+That creates a `.venv`, installs the dependencies, downloads the models, and
+runs the health check. It is safe to re-run — it skips whatever is already in
+place. Add `-Exe` (Windows) to also build `dist\face-agent.exe`, or `--dlib` /
+`-Dlib` to add the higher-accuracy backend.
+
+### Or step by step
 
 ```bash
 pip install -r requirements.txt          # opencv + numpy
@@ -257,6 +277,7 @@ and still identifies the person — back it up and protect it accordingly.
 | Everyone matches the same person | Threshold too loose: `--threshold 0.5` on sface, `--threshold 0.45` on dlib |
 | Known people come back `unknown` | Enroll more photos in varied lighting, or loosen the threshold slightly |
 | `401` from the API | Send `Authorization: Bearer $(face-agent token)` |
+| PowerShell: *"running scripts is disabled on this system"* | Launch it as `powershell -ExecutionPolicy Bypass -File scripts\setup.ps1` — that bypasses the policy for this one script without changing a machine-wide setting. |
 | `got a Git LFS pointer instead of the model` | The model URL was overridden to a `raw.githubusercontent.com` address, which serves the LFS stub. Unset `FACE_AGENT_YUNET_URL` / `FACE_AGENT_SFACE_URL` to use the `github.com/.../raw/...` defaults. |
 
 ---
