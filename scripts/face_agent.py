@@ -1025,6 +1025,17 @@ def build_rtsp_url(
     return f"rtsp://{credentials}{host}:{port}{path}"
 
 
+def port_is_open(host: str, port: int, timeout: float = 3.0) -> bool:
+    """Is anything listening? A plain TCP connect, with a timeout that holds."""
+    import socket
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def op_probe_stream(
     host: str,
     port: int = 554,
@@ -1048,6 +1059,29 @@ def op_probe_stream(
     candidates = list(paths) if paths else COMMON_RTSP_PATHS
     working: list[str] = []
 
+    # Check the port first. OpenCV's open timeout is not honoured for the TCP
+    # connect under the FFMPEG backend, so probing a host that is not there
+    # stalls for minutes per path and looks like a hang. A wrong IP is the
+    # most likely way to run this, so it has to fail fast and say why.
+    if not port_is_open(host, port):
+        emit(f"Nothing is listening on {host}:{port}.")
+        return {
+            "ok": False,
+            "host": host,
+            "port": port,
+            "reachable": False,
+            "tried": 0,
+            "working_paths": [],
+            "urls": [],
+            "reason": (
+                f"nothing is listening on {host}:{port}. Check the IP is the "
+                "camera's address on your own network (192.168.x.x or 10.x.x.x, "
+                "not your public internet address), that the camera is powered "
+                "on, and that it supports RTSP at all — many cloud-only cameras "
+                "do not."
+            ),
+        }
+
     emit(f"Trying {len(candidates)} common paths on {host}:{port} — this takes a minute.")
     for path in candidates:
         url = build_rtsp_url(host, port, user, password, path)
@@ -1070,6 +1104,7 @@ def op_probe_stream(
         "ok": bool(working),
         "host": host,
         "port": port,
+        "reachable": True,
         "tried": len(candidates),
         "working_paths": working,
         "urls": [
@@ -1722,6 +1757,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "\nWorking stream URLs (your password goes where the *** is):\n  "
                     + "\n  ".join(d["urls"])
                     if d["urls"]
+                    else "\n" + d["reason"]
+                    if d.get("reason")
                     else (
                         f"\nNone of the {d['tried']} common paths worked on "
                         f"{d['host']}:{d['port']}.\nCheck the IP is right and the "

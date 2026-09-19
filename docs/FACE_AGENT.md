@@ -138,6 +138,20 @@ The path differs by manufacturer — common shapes are `/stream1`, `/h264Preview
 (Hikvision). **Confirm the URL plays in VLC first** (Media → Open Network Stream);
 if VLC cannot play it, neither can this.
 
+**Don't know the stream path?** Most budget cameras don't document one. Probe
+for it:
+
+```bash
+face-agent probe-stream --host 192.168.1.50 --user admin --password secret
+```
+
+It tries the common paths and reports which actually deliver video. If nothing
+is listening on port 554 it says so in a few seconds rather than grinding
+through every path — a wrong IP is the usual reason, and many cloud-only
+cameras (most Tuya / Smart Life devices, for instance) have no RTSP server at
+all. The output prints `rtsp://***@host/path`, so it is safe to paste into an
+issue.
+
 Two practical notes:
 
 - **Prefer the sub-stream.** Most cameras serve a second, lower-resolution

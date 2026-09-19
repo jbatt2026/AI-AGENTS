@@ -397,6 +397,7 @@ def test_probe_stream_reports_the_one_that_works(monkeypatch: pytest.MonkeyPatch
             pass
 
     monkeypatch.setattr(cv2, "VideoCapture", FakeCapture)
+    monkeypatch.setattr(fa, "port_is_open", lambda host, port, timeout=3.0: True)
     result = fa.op_probe_stream(
         "192.168.1.50", user="admin", password="secret", emit=lambda line: None
     )
@@ -428,6 +429,48 @@ def test_probe_stream_reports_nothing_found(monkeypatch: pytest.MonkeyPatch) -> 
             pass
 
     monkeypatch.setattr(cv2, "VideoCapture", DeadCapture)
+    monkeypatch.setattr(fa, "port_is_open", lambda host, port, timeout=3.0: True)
     result = fa.op_probe_stream("10.0.0.9", emit=lambda line: None)
     assert result["ok"] is False
     assert result["working_paths"] == []
+
+
+def test_probe_stream_fails_fast_when_nothing_listens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wrong IP must not stall: OpenCV ignores its own connect timeout."""
+    pytest.importorskip("cv2")
+    import cv2
+
+    def explode(*args, **kwargs):
+        raise AssertionError("VideoCapture must not be reached when the port is shut")
+
+    monkeypatch.setattr(fa, "port_is_open", lambda host, port, timeout=3.0: False)
+    monkeypatch.setattr(cv2, "VideoCapture", explode)
+
+    result = fa.op_probe_stream("10.255.255.1", emit=lambda line: None)
+    assert result["ok"] is False
+    assert result["reachable"] is False
+    assert result["tried"] == 0
+    assert "nothing is listening" in result["reason"]
+    assert "public internet address" in result["reason"]
+
+
+def test_port_is_open_says_no_for_a_closed_port() -> None:
+    """Bound to an ephemeral port that is then closed, so nothing listens."""
+    import socket
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    assert fa.port_is_open("127.0.0.1", port, timeout=1.0) is False
+
+
+def test_port_is_open_says_yes_for_a_listening_port() -> None:
+    import socket
+
+    with socket.socket() as server:
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        port = server.getsockname()[1]
+        assert fa.port_is_open("127.0.0.1", port, timeout=2.0) is True
