@@ -122,6 +122,33 @@ face-agent watch --camera 0 --cooldown 30          # JSON lines, one per arrival
 face-agent events --limit 20                       # recognition history
 ```
 
+### Network (IP / security) cameras
+
+Anywhere a camera index goes, a stream URL goes instead — no webcam required:
+
+```bash
+face-agent identify --camera "rtsp://user:pass@192.168.1.50:554/stream1"
+face-agent watch --camera "rtsp://user:pass@192.168.1.50:554/stream1" --cooldown 30
+face-agent enroll --name "Jane" --camera "rtsp://..." --shots 5
+```
+
+Find your camera's URL in its app or web page, usually under RTSP or "stream".
+The path differs by manufacturer — common shapes are `/stream1`, `/h264Preview_01_main`
+(Reolink), `/cam/realmonitor?channel=1&subtype=0` (Dahua), `/Streaming/Channels/101`
+(Hikvision). **Confirm the URL plays in VLC first** (Media → Open Network Stream);
+if VLC cannot play it, neither can this.
+
+Two practical notes:
+
+- **Prefer the sub-stream.** Most cameras serve a second, lower-resolution
+  stream, and faces are usually still large enough. It is far cheaper to decode.
+- **Credentials are never logged.** A URL like `rtsp://admin:hunter2@cam/s1`
+  is recorded and returned as `rtsp://***@cam/s1`, so the password stays out of
+  the events table and out of anything handed to an agent.
+
+Opening a stream times out after 15 seconds rather than hanging, and the buffer
+is kept at one frame so a snapshot is current rather than a backlog.
+
 Enrollment tips: 3–10 photos per person, varying angle and lighting, one face
 per photo. Files with zero or two faces are skipped and reported rather than
 guessed at.
@@ -273,7 +300,9 @@ and still identifies the person — back it up and protect it accordingly.
 | --- | --- |
 | `no usable face recognition backend` | `pip install opencv-python` then `face-agent models --download` |
 | `missing model files` | `face-agent models --download` (needs internet once) |
-| `could not open camera 0` | Close other apps using the webcam; on Windows check Settings → Privacy → Camera; try `--camera 1` |
+| `could not open camera 0` | Close other apps using the webcam; on Windows check Settings → Privacy & security → Camera → *Let desktop apps access your camera*; try `--camera 1` |
+| No camera at any index | The PC may have no webcam. Use a network camera instead — see *Network (IP / security) cameras* above. |
+| `could not open the stream at ...` | Test the URL in VLC first. Usually a wrong stream path, missing credentials, or the camera's connection limit already reached. |
 | Everyone matches the same person | Threshold too loose: `--threshold 0.5` on sface, `--threshold 0.45` on dlib |
 | Known people come back `unknown` | Enroll more photos in varied lighting, or loosen the threshold slightly |
 | `401` from the API | Send `Authorization: Bearer $(face-agent token)` |

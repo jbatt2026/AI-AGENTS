@@ -39,10 +39,17 @@ def test_backend_default_comes_from_the_environment(monkeypatch: pytest.MonkeyPa
     assert parse(["list"]).backend == "dlib"
 
 
-def test_camera_flag_defaults_to_zero() -> None:
-    assert parse(["identify", "--camera"]).camera == 0
-    assert parse(["identify", "--camera", "2"]).camera == 2
+def test_camera_flag_accepts_an_index_or_a_url() -> None:
+    """The flag is a string now, so a network camera URL survives parsing."""
+    assert parse(["identify", "--camera"]).camera == "0"
+    assert parse(["identify", "--camera", "2"]).camera == "2"
     assert parse(["identify", "--image", "x"]).camera is None
+    url = "rtsp://admin:pw@192.168.1.50:554/stream1"
+    assert parse(["identify", "--camera", url]).camera == url
+
+
+def test_watch_camera_defaults_to_zero() -> None:
+    assert parse(["watch"]).camera == "0"
 
 
 def test_subcommand_is_required(capsys: pytest.CaptureFixture) -> None:

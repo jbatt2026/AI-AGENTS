@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from pathlib import Path
 
 import face_agent as fa
@@ -291,3 +292,60 @@ def test_sface_reports_corrupt_models_cleanly(tmp_path: Path) -> None:
 
     with pytest.raises(fa.FaceAgentError, match="corrupt"):
         backend._load()
+
+
+def test_parse_camera_source_accepts_indexes_and_urls() -> None:
+    assert fa.parse_camera_source(0) == 0
+    assert fa.parse_camera_source("0") == 0
+    assert fa.parse_camera_source("2") == 2
+    url = "rtsp://192.168.1.50:554/stream1"
+    assert fa.parse_camera_source(url) == url
+    assert fa.parse_camera_source("http://cam.local/video.mjpg").startswith("http://")
+
+
+def test_parse_camera_source_rejects_nonsense() -> None:
+    with pytest.raises(fa.FaceAgentError, match="neither a camera index nor a stream URL"):
+        fa.parse_camera_source("my camera")
+
+
+def test_redact_source_hides_stream_credentials() -> None:
+    """Stream URLs carry passwords, and this label is logged and returned."""
+    label = fa.redact_source("rtsp://admin:hunter2@192.168.1.50:554/stream1")
+    assert "hunter2" not in label
+    assert "admin" not in label
+    assert "192.168.1.50:554" in label
+    assert label.startswith("rtsp://***@")
+    assert label.endswith("/stream1")
+
+
+def test_redact_source_leaves_clean_values_alone() -> None:
+    assert fa.redact_source(0) == "camera:0"
+    assert fa.redact_source("1") == "camera:1"
+    assert fa.redact_source("rtsp://cam.local/s1") == "rtsp://cam.local/s1"
+
+
+def test_identify_from_a_stream_never_logs_the_password(
+    store: fa.FaceStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The events table and the returned payload must both stay clean."""
+    backend = FakeBackend()
+    backend.frames = [[[1.0, 0.0]]]
+    store.add_face("Jane", [1.0, 0.0], "fake")
+
+    class FakeCap:
+        def read(self):
+            return True, object()
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(
+        fa, "open_camera", lambda *a, **k: __import__("contextlib").nullcontext(FakeCap())
+    )
+
+    secret = "rtsp://admin:hunter2@192.168.1.50:554/stream1"
+    result = fa.op_identify(store, backend, camera=secret)
+
+    assert "hunter2" not in json.dumps(result)
+    assert result["best_match"]["name"] == "Jane"
+    assert "hunter2" not in json.dumps(store.recent_events())

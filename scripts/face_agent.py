@@ -42,6 +42,7 @@ import struct
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -601,18 +602,83 @@ def iter_images(paths: Iterable[str]) -> list[Path]:
     return found
 
 
+def parse_camera_source(value: int | str) -> int | str:
+    """A local camera index, or a stream URL passed through untouched.
+
+    `--camera 0` is the built-in webcam; `--camera rtsp://...` is a network
+    camera. OpenCV takes either, but only if the index arrives as an int.
+    """
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    if text.isdigit():
+        return int(text)
+    if "://" not in text:
+        raise FaceAgentError(
+            f"'{text}' is neither a camera index nor a stream URL. Use a number "
+            "like 0, or a URL like rtsp://user:pass@192.168.1.50:554/stream1"
+        )
+    return text
+
+
+def redact_source(value: int | str) -> str:
+    """A label safe to log, store, and return to an agent.
+
+    Stream URLs routinely carry credentials — rtsp://admin:hunter2@cam/stream —
+    and this label ends up in the events table and in JSON handed back to
+    callers, so the password must not travel with it.
+    """
+    source = parse_camera_source(value)
+    if isinstance(source, int):
+        return f"camera:{source}"
+    parts = urllib.parse.urlsplit(source)
+    if parts.username or parts.password:
+        host = parts.hostname or ""
+        if parts.port:
+            host = f"{host}:{parts.port}"
+        parts = parts._replace(netloc=f"***@{host}")
+    return urllib.parse.urlunsplit(parts)
+
+
 @contextlib.contextmanager
-def open_camera(index: int = 0, warmup: int = 5) -> Any:
-    """Open a webcam, discarding the first frames while exposure settles."""
+def open_camera(source: int | str = 0, warmup: int = 5) -> Any:
+    """Open a local camera or a network stream.
+
+    The first frames are discarded: a webcam needs them for exposure, and an
+    RTSP stream needs them to reach a keyframe.
+    """
     try:
         import cv2
     except Exception as exc:
         raise FaceAgentError("camera capture needs opencv: pip install opencv-python") from exc
-    cap = cv2.VideoCapture(index)
+
+    target = parse_camera_source(source)
+    label = redact_source(source)
+
+    if isinstance(target, str):
+        # Network streams: fail instead of blocking forever on an unreachable
+        # camera, and keep the buffer shallow so frames are current rather
+        # than a backlog from whenever the stream was opened.
+        cap = cv2.VideoCapture(target, cv2.CAP_FFMPEG)
+        for prop in ("CAP_PROP_OPEN_TIMEOUT_MSEC", "CAP_PROP_READ_TIMEOUT_MSEC"):
+            if hasattr(cv2, prop):
+                cap.set(getattr(cv2, prop), 15000)
+        if hasattr(cv2, "CAP_PROP_BUFFERSIZE"):
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    else:
+        cap = cv2.VideoCapture(target)
+
     if not cap.isOpened():
         cap.release()
+        if isinstance(target, str):
+            raise FaceAgentError(
+                f"could not open the stream at {label}. Check the URL in VLC first "
+                "(Media > Open Network Stream). Common causes: wrong path for the "
+                "model, credentials required, the camera limits simultaneous "
+                "connections, or this PC cannot reach it."
+            )
         raise FaceAgentError(
-            f"could not open camera {index}. Check that no other app holds it "
+            f"could not open camera {target}. Check that no other app holds it "
             "and that camera permission is granted to this program."
         )
     try:
@@ -660,7 +726,7 @@ def op_enroll(
     backend: Backend,
     name: str,
     image_paths: Sequence[str] | None = None,
-    camera: int | None = None,
+    camera: int | str | None = None,
     shots: int = 3,
     delay: float = 0.8,
 ) -> dict[str, Any]:
@@ -699,7 +765,7 @@ def op_enroll(
                         }
                     )
                 else:
-                    store.add_face(name, embeddings[0], backend.name, source=f"camera:{camera}")
+                    store.add_face(name, embeddings[0], backend.name, source=redact_source(camera))
                     added += 1
                 if shot < shots - 1:
                     time.sleep(delay)
@@ -724,7 +790,7 @@ def op_identify(
     backend: Backend,
     image: str | None = None,
     image_base64: str | None = None,
-    camera: int | None = None,
+    camera: int | str | None = None,
     threshold: float | None = None,
 ) -> dict[str, Any]:
     temp: Path | None = None
@@ -742,7 +808,7 @@ def op_identify(
         elif camera is not None:
             with open_camera(camera) as cap:
                 embeddings = backend.embed_frame(grab_frame(cap))
-            source = f"camera:{camera}"
+            source = redact_source(camera)
         else:
             raise FaceAgentError("identify needs --image, --camera, or image_base64")
     finally:
@@ -915,7 +981,7 @@ def op_download_models(dest: Path | None = None) -> dict[str, Any]:
 def op_watch(
     store: FaceStore,
     backend: Backend,
-    camera: int = 0,
+    camera: int | str = 0,
     interval: float = 1.0,
     cooldown: float = 10.0,
     threshold: float | None = None,
@@ -945,11 +1011,11 @@ def op_watch(
                         "event": "face_seen",
                         "name": name,
                         "confidence": round(match.confidence, 4) if match else 0.0,
-                        "camera": camera,
+                        "camera": redact_source(camera),
                         "backend": backend.name,
                         "timestamp": now_iso(),
                     }
-                    store.log_event("watch", name, event["confidence"], f"camera:{camera}")
+                    store.log_event("watch", name, event["confidence"], redact_source(camera))
                     emit(event)
                     emitted += 1
                     if limit and emitted >= limit:
@@ -1453,7 +1519,11 @@ def build_parser() -> argparse.ArgumentParser:
     enroll.add_argument("--name", required=True, help="Identity label")
     enroll.add_argument("--images", nargs="+", help="Image files or directories")
     enroll.add_argument(
-        "--camera", type=int, nargs="?", const=0, help="Capture from this camera index"
+        "--camera",
+        nargs="?",
+        const="0",
+        metavar="INDEX_OR_URL",
+        help="Capture from a camera index (0) or a stream URL (rtsp://...)",
     )
     enroll.add_argument("--shots", type=int, default=3, help="Webcam shots to take (default 3)")
     enroll.add_argument("--delay", type=float, default=0.8, help="Seconds between shots")
@@ -1465,10 +1535,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     identify = add("identify", "Identify faces in an image or webcam snapshot")
     identify.add_argument("--image", help="Path to an image file")
-    identify.add_argument("--camera", type=int, nargs="?", const=0, help="Camera index to snapshot")
+    identify.add_argument(
+        "--camera",
+        nargs="?",
+        const="0",
+        metavar="INDEX_OR_URL",
+        help="Snapshot a camera index (0) or a stream URL (rtsp://...)",
+    )
 
     watch = add("watch", "Stream recognition events as JSON lines")
-    watch.add_argument("--camera", type=int, default=0)
+    watch.add_argument(
+        "--camera",
+        default="0",
+        metavar="INDEX_OR_URL",
+        help="Camera index (0) or a stream URL (rtsp://...)",
+    )
     watch.add_argument("--interval", type=float, default=1.0, help="Seconds between frames")
     watch.add_argument(
         "--cooldown", type=float, default=10.0, help="Seconds before re-reporting the same person"
