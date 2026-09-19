@@ -35,7 +35,9 @@ def test_setup_sh_is_executable_and_parses() -> None:
 def test_powershell_delimiters_are_balanced() -> None:
     """No PowerShell in CI, so check the structure that a typo would break."""
     src = SETUP_PS1.read_text(encoding="utf-8")
-    assert src.count("<#") == src.count("#>") == 1, "unbalanced block comment"
+    # The file no longer opens with a <# comment-based help #> block, but any
+    # block comment it does contain still has to be closed.
+    assert src.count("<#") == src.count("#>"), "unbalanced block comment"
     assert src.count("{") == src.count("}"), "unbalanced braces"
     assert src.count("@'") == src.count("'@"), "unbalanced single-quoted here-string"
     assert src.count('@"') == src.count('"@'), "unbalanced double-quoted here-string"
