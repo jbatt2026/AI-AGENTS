@@ -75,3 +75,20 @@ def test_setup_sh_help_needs_no_install() -> None:
     result = subprocess.run([bash, str(SETUP_SH), "--help"], capture_output=True, text=True)
     assert result.returncode == 0
     assert "--no-venv" in result.stdout
+
+
+def test_powershell_script_has_no_param_block() -> None:
+    """A param() block with [switch] parameters broke on Windows PowerShell 5.1.
+
+    Launching the script with `powershell -File` failed during parameter
+    binding -- "Cannot convert value System.String to type SwitchParameter" --
+    before any line of it ran, even with no arguments passed. Options are read
+    from $args instead, which cannot fail that way. This test exists so the
+    param() block is not reintroduced by someone tidying the file.
+    """
+    src = SETUP_PS1.read_text(encoding="utf-8")
+    code = "\n".join(line for line in src.splitlines() if not line.lstrip().startswith("#"))
+    assert "param(" not in code, "setup.ps1 must not use a param() block"
+    assert "CmdletBinding" not in code, "setup.ps1 must not use [CmdletBinding()]"
+    for option in ("-NoVenv", "-Dlib", "-Exe"):
+        assert f"$args -contains '{option}'" in code, f"{option} must be read from $args"

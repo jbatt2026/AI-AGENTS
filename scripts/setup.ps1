@@ -1,28 +1,27 @@
-<#
-.SYNOPSIS
-    One-command setup for face-agent on Windows.
+# One-command setup for face-agent on Windows.
+#
+# Creates a virtual environment, installs the dependencies, downloads the face
+# models, and runs the health check. Safe to re-run: it skips what is already
+# in place.
+#
+#   powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Exe
+#
+#   -Exe      also build dist\face-agent.exe so it runs without Python
+#   -Dlib     also install the dlib backend (needs cmake and a C++ compiler)
+#   -NoVenv   install into the current Python instead of a .venv
+#
+# Options are read from $args instead of a param() block on purpose. With
+# [CmdletBinding()] and [switch] parameters, launching this through
+# `powershell -File` on Windows PowerShell 5.1 failed while binding
+# parameters -- "Cannot convert value System.String to type
+# System.Management.Automation.SwitchParameter" -- before the first line of
+# the script ran, even with no arguments passed. Reading $args cannot fail
+# that way. Do not reintroduce param() here.
 
-.DESCRIPTION
-    Creates a virtual environment, installs the dependencies, downloads the
-    face models, and runs the health check. Safe to re-run: it skips what is
-    already in place.
-
-.EXAMPLE
-    powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
-
-.EXAMPLE
-    powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Exe
-    Also builds dist\face-agent.exe so it runs without Python.
-#>
-[CmdletBinding()]
-param(
-    # Skip the virtual environment and install into the current Python.
-    [switch]$NoVenv,
-    # Also install the dlib backend. Needs cmake and a C++ compiler.
-    [switch]$Dlib,
-    # Also build a standalone dist\face-agent.exe with PyInstaller.
-    [switch]$Exe
-)
+$NoVenv = $args -contains '-NoVenv'
+$Dlib = $args -contains '-Dlib'
+$Exe = $args -contains '-Exe'
 
 $ErrorActionPreference = 'Stop'
 
