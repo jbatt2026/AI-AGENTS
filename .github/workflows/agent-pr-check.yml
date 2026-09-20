@@ -14,8 +14,12 @@ jobs:
 
       - name: Validate branch naming convention
         if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/')
+        env:
+          # Passed as an environment variable, never interpolated into the
+          # script body: ${{ }} splices the raw value into the shell source
+          # before bash parses it, which is a script-injection vector.
+          BRANCH: ${{ github.head_ref }}
         run: |
-          BRANCH="${{ github.head_ref }}"
           echo "Validating branch: $BRANCH"
           if [[ ! $BRANCH =~ ^agent/[a-z0-9-]+$ ]]; then
             echo "ERROR: Agent branch '$BRANCH' does not match pattern 'agent/<agent-name>-<task-slug>'"
@@ -26,8 +30,11 @@ jobs:
 
       - name: Validate agent PR attribution footer
         if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        env:
+          # Same reason. A pull request body is attacker-controlled text on a
+          # public repository; interpolating it here ran it as shell.
+          BODY: ${{ github.event.pull_request.body }}
         run: |
-          BODY="${{ github.event.pull_request.body }}"
           if [[ "$BODY" == *"Generated with"* ]] || [[ "$BODY" == *"Co-authored-by:"* ]]; then
             echo "Attribution footer found in PR body."
           else
