@@ -14,34 +14,49 @@ The repository is **public**. Assume anything committed here is world-readable.
 
 ## Current state — read this first
 
-This repo is a scaffold. As of the latest commit it contains exactly two files:
+The repo holds a TypeScript / Vite / React web app — the GitHub App workbench —
+plus the App manifest, install docs, and the CI that guards agent-authored pull
+requests. 30 tracked files:
 
 ```
-README.md     # repo purpose and agent guidance
-CLAUDE.md     # this file
+index.html, vite.config.ts        # app entry and build config
+package.json, package-lock.json   # dependencies; the lockfile IS committed
+tsconfig.json, tsconfig.node.json # TypeScript config
+src/                              # App.tsx, main.tsx, types.ts, index.css
+src/components/                   # 6 components: Header, DocsHub,
+                                  #   ManifestBuilder, TokenAuthSimulator,
+                                  #   PRWorkflowWorkbench, AgentScriptsRunner
+.github/GITHUB_APP_MANIFEST.json  # App manifest
+.github/workflows/                # agent-pr-check.yml
+.github/scripts/scan_secrets.py   # the CI secret scanner
+.githooks/pre-commit              # local secret scanning
 ```
 
-There is **no source code, no package manifest, no test suite, no CI, and no
-build system yet.** Do not report or assume otherwise.
+There is a build system and CI, but **no test suite** — `npm run lint` is a
+typecheck (`tsc --noEmit`), not tests. Do not claim tests pass; there are none
+to run.
 
-`README.md` describes the repo's intended contents in the present tense, but
-those files are **not yet written**:
+`.github/scripts/scan_secrets.py` is the only Python in the tree. It is
+stdlib-only and has no toolchain of its own — no pytest, no ruff, no
+`requirements.txt`. Run it directly.
 
-| Referenced in README | Exists? | Purpose when created |
+The files `README.md` references all exist:
+
+| Referenced in README | Exists? | Purpose |
 | --- | --- | --- |
 | `INSTALL_GITHUB_APP.md` | Yes | Step-by-step GitHub App install/config |
 | `.github/GITHUB_APP_MANIFEST.json` | Yes | App manifest (permissions, webhook, events) |
 | `CONTRIBUTING.md` | Yes | Contributor and agent guidelines |
 | `CODEOWNERS` | Yes | Review ownership routing |
 | `.github/workflows/agent-pr-check.yml` | Yes | Checks on agent-created PRs |
+| `.github/scripts/scan_secrets.py` | Yes | Secret scanner the workflow runs |
 
-Treat that table as the backlog. When a task touches one of those items, create
-the file rather than assuming it is somewhere you haven't looked. When you do
-create one, update the table above so this file stays accurate.
+When you add another entry, update the table above so this file stays accurate.
 
-Because the tree is nearly empty, **verify before you generalize**: a quick
-`git ls-files` is cheaper than an assumption about structure that no longer holds
-once real code lands.
+**Verify before you generalize**: a quick `git ls-files` is cheaper than an
+assumption about structure that no longer holds once more code lands. This
+section was wrong for some time — it described a two-file scaffold with no CI
+long after the app, the workflow and the lockfile had landed.
 
 ## Working conventions
 
@@ -60,7 +75,16 @@ Documented invocations:
 - `npm install` — install dependencies
 - `npm run dev` — start local development server at `http://localhost:3000` (restricted to localhost by default for security)
 - `npm run build` — typecheck and compile production bundle into `dist/`
+- `npm run lint` — typecheck only (`tsc --noEmit`). This is not a test suite.
 - `npm run preview` — preview production build locally
+- `python3 .github/scripts/scan_secrets.py .` — the secret scan CI runs.
+  Exits 0 when clean, 1 on a finding. Needs no dependencies.
+
+Run all three of CI's steps before pushing, in the workflow's own order:
+
+```bash
+npm ci && npm run build && python3 .github/scripts/scan_secrets.py .
+```
 
 For network access (shared/cloud environments), set environment variables:
 ```bash
@@ -88,13 +112,15 @@ The `.env.local` file is git-ignored and safe for local development. For CI/CD:
 
 ### Layout for new code
 
-When adding the first real code, keep the root uncluttered:
+Keep the root uncluttered:
 
 - `.github/` — App manifest, workflows, issue/PR templates, `CODEOWNERS`.
+- `.github/scripts/` — scripts the workflows call.
 - `.githooks/` — Git hooks for local development (pre-commit secret scanning)
-- `scripts/` — standalone operational scripts agents run.
-- `src/` (or the ecosystem's convention) — reusable library code.
-- `docs/` — anything longer than a section of `README.md`.
+- `scripts/` — standalone operational scripts agents run. Does not exist yet;
+  create it rather than putting such a script at the root.
+- `src/` — the web app's TypeScript source; components under `src/components/`.
+- `docs/` — anything longer than a section of `README.md`. Does not exist yet.
 
 ### Secrets & Credential Safety
 
@@ -107,7 +133,12 @@ committed secret, stop and flag it rather than quietly rewriting history.
 **Local Protection:**
 - `.env.local`, `*.pem`, and `.env.*local` are git-ignored (see `.gitignore`)
 - Pre-commit hook (in `.githooks/pre-commit`) scans staged changes for secrets before commit
-- CI workflow scans for private keys, API keys, tokens, and AWS credentials
+- CI runs `.github/scripts/scan_secrets.py`, which looks for private keys with
+  a real base64 body, credential-ish assignments, and AWS, GitHub, Slack,
+  Google and Stripe token formats. Files that legitimately document these
+  patterns are named individually in that script's `ALLOWLIST` — if a finding
+  is a placeholder, add the path there with a reason rather than loosening a
+  pattern.
 
 **Setup:**
 After cloning, enable the pre-commit hook:
