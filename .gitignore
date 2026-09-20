@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json is committed on purpose: the CI workflow runs `npm ci`,
+# which requires a lockfile and fails without one.
 yarn.lock
 
 # Build outputs
