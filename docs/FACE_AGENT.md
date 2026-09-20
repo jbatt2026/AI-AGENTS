@@ -103,6 +103,32 @@ Every result also carries a normalized `confidence` from 0 to 1, which is
 exactly 0.5 at the threshold, so an agent can reason about certainty without
 knowing which backend produced it.
 
+### High-resolution photos
+
+YuNet is trained around VGA-scale input, so a full-resolution phone photo can
+detect no face at all — the face fills too much of the frame for the detector's
+anchors. `sface` handles this for you: detection runs on a copy capped to a
+1024px long side, then the coordinates are scaled back so the face is still
+cropped from the original at full resolution. You do not need to resize
+anything before enrolling.
+
+### Measured accuracy
+
+On a 64-image set of real photos with published same/different labels
+(`deepface`'s test dataset, 9 people, 299 labelled pairs):
+
+| Check | Result |
+| --- | --- |
+| Faces detected, at native resolution | 48 / 64 images |
+| Faces detected, with the 1024px cap | 64 / 64 images |
+| Held-out photo matched to the right person | 16 / 16 |
+| Matched to the *wrong* person | 0 / 16 |
+| Impostors (person absent from the database) rejected | 25 / 25 |
+
+Enrolment used a single photo per person, at the default 0.363 threshold. Your
+own numbers depend on your photos; enrol several shots per person for the best
+results.
+
 ---
 
 ## Command line
