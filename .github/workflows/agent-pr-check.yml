@@ -50,32 +50,4 @@ jobs:
         run: npm run build
 
       - name: Check for committed secrets
-        run: |
-          echo "Scanning for accidental secret leaks (.pem, private keys, API keys, tokens)..."
-          
-          # Scan for private keys
-          if grep -rn "BEGIN RSA PRIVATE KEY\|BEGIN EC PRIVATE KEY\|BEGIN OPENSSH PRIVATE KEY" . --exclude-dir={node_modules,.git,dist}; then
-            echo "ERROR: Found committed private key in repository!"
-            exit 1
-          fi
-          
-          # Scan for common API key/token patterns
-          if grep -rn -E "(api[_-]?key|bearer[_-]?token|access[_-]?token|oauth[_-]?token|secret[_-]?key|password)\s*[:=]\s*['\"]?[A-Za-z0-9_-]{20,}" . --exclude-dir={node_modules,.git,dist} --exclude-file=.env.example; then
-            echo "ERROR: Found potential API key or token in committed code!"
-            exit 1
-          fi
-          
-          # Scan for AWS credential patterns
-          if grep -rn "AKIA[0-9A-Z]\{16\}" . --exclude-dir={node_modules,.git,dist}; then
-            echo "ERROR: Found potential AWS access key in repository!"
-            exit 1
-          fi
-          
-          # Scan for GitHub tokens
-          if grep -rn "ghp_[A-Za-z0-9_]\{36\}\|ghu_[A-Za-z0-9_]\{36\}" . --exclude-dir={node_modules,.git,dist}; then
-            echo "ERROR: Found GitHub personal access token in repository!"
-            exit 1
-          fi
-          
-          echo "Secret scan passed cleanly."
-
+        run: python3 .github/scripts/scan_secrets.py .
