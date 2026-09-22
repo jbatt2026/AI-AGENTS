@@ -4,6 +4,13 @@ node_modules/
 # which requires a lockfile and fails without one.
 yarn.lock
 
+# Python (.github/scripts/ is Python; a virtualenv here must never be committed)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
 # Build outputs
 dist/
 build/
