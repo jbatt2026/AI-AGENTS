@@ -54,7 +54,12 @@ jobs:
         run: npm ci
 
       - name: Verify TypeScript & Build
-        run: npm run build
+        run: |
+          npm run lint
+          npm run build
+
+      - name: Verify local server security defaults
+        run: npm run test:server-security
 
       - name: Check for committed secrets
         run: python3 .github/scripts/scan_secrets.py .
