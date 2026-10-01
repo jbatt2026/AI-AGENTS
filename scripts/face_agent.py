@@ -1500,10 +1500,10 @@ def mcp_error(msg_id: Any, code: int, message: str) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": code, "message": message}}
 
 
-def handle_mcp_message(
-    msg: dict[str, Any], store_path: Path, backend_name: str
-) -> dict[str, Any] | None:
+def handle_mcp_message(msg: Any, store_path: Path, backend_name: str) -> dict[str, Any] | None:
     """Handle one JSON-RPC message. Returns None for notifications."""
+    if not isinstance(msg, dict):
+        return mcp_error(None, -32600, "invalid request: expected a JSON object")
     method = msg.get("method")
     msg_id = msg.get("id")
     params = msg.get("params") or {}
