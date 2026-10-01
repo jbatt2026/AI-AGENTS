@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -18,17 +19,41 @@ SETUP_SH = REPO / "scripts" / "setup.sh"
 SETUP_PS1 = REPO / "scripts" / "setup.ps1"
 
 
+def setup_bash() -> str:
+    """Use Git Bash on Windows; WSL Bash cannot consume Windows paths."""
+    if sys.platform == "win32":
+        git = shutil.which("git")
+        if git:
+            bash = Path(git).resolve().parent.parent / "bin" / "bash.exe"
+            if bash.is_file():
+                return str(bash)
+        pytest.skip("Git Bash not available")
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("bash not available")
+    return bash
+
+
 def test_both_setup_scripts_exist() -> None:
     assert SETUP_SH.is_file(), "macOS/Linux setup script is missing"
     assert SETUP_PS1.is_file(), "Windows setup script is missing"
 
 
 def test_setup_sh_is_executable_and_parses() -> None:
-    assert SETUP_SH.stat().st_mode & 0o111, "setup.sh should be executable"
-    bash = shutil.which("bash")
-    if not bash:  # pragma: no cover - bash is present on every CI runner we use
-        pytest.skip("bash not available")
-    result = subprocess.run([bash, "-n", str(SETUP_SH)], capture_output=True, text=True)
+    if sys.platform == "win32":
+        mode = subprocess.run(
+            ["git", "ls-files", "--stage", "--", "scripts/setup.sh"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert mode.startswith("100755 "), "setup.sh should be executable in Git"
+    else:
+        assert SETUP_SH.stat().st_mode & 0o111, "setup.sh should be executable"
+    result = subprocess.run(
+        [setup_bash(), "-n", SETUP_SH.as_posix()], capture_output=True, text=True
+    )
     assert result.returncode == 0, f"setup.sh has a syntax error:\n{result.stderr}"
 
 
@@ -59,11 +84,8 @@ def test_setup_scripts_keep_the_consent_notice(script: Path) -> None:
 
 
 def test_setup_sh_rejects_unknown_flags() -> None:
-    bash = shutil.which("bash")
-    if not bash:  # pragma: no cover
-        pytest.skip("bash not available")
     result = subprocess.run(
-        [bash, str(SETUP_SH), "--not-a-real-flag"], capture_output=True, text=True
+        [setup_bash(), SETUP_SH.as_posix(), "--not-a-real-flag"], capture_output=True, text=True
     )
     assert result.returncode == 2
     assert "unknown option" in result.stderr
@@ -71,10 +93,9 @@ def test_setup_sh_rejects_unknown_flags() -> None:
 
 def test_setup_sh_help_needs_no_install() -> None:
     """--help must work before anything is installed."""
-    bash = shutil.which("bash")
-    if not bash:  # pragma: no cover
-        pytest.skip("bash not available")
-    result = subprocess.run([bash, str(SETUP_SH), "--help"], capture_output=True, text=True)
+    result = subprocess.run(
+        [setup_bash(), SETUP_SH.as_posix(), "--help"], capture_output=True, text=True
+    )
     assert result.returncode == 0
     assert "--no-venv" in result.stdout
 

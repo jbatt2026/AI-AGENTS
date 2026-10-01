@@ -183,6 +183,22 @@ def test_mcp_stdio_loop_handles_bad_json(tmp_path: Path) -> None:
     assert len(lines[1]["result"]["tools"]) == len(fa.TOOL_SCHEMAS)
 
 
+@pytest.mark.parametrize("message", [None, [], [1], "text", 7, True])
+def test_mcp_stdio_rejects_non_objects_and_continues(message, tmp_path: Path) -> None:
+    stdin = io.StringIO(
+        json.dumps(message)
+        + "\n"
+        + json.dumps({"jsonrpc": "2.0", "id": 42, "method": "ping"})
+        + "\n"
+    )
+    stdout = io.StringIO()
+    fa.op_mcp(tmp_path / "faces.db", "auto", stdin=stdin, stdout=stdout)
+    responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    assert responses[0]["id"] is None
+    assert responses[0]["error"]["code"] == -32600
+    assert responses[1] == {"jsonrpc": "2.0", "id": 42, "result": {}}
+
+
 # -- HTTP ------------------------------------------------------------------
 
 
