@@ -14,34 +14,22 @@ The repository is **public**. Assume anything committed here is world-readable.
 
 ## Current state — read this first
 
-This repo is a scaffold. As of the latest commit it contains exactly two files:
+A React 18 / Vite 6 / Tailwind 4 dashboard plus GitHub App scaffolding. Verify with
+`git ls-files` before generalizing.
 
-```
-README.md     # repo purpose and agent guidance
-CLAUDE.md     # this file
-```
+| Path | Purpose |
+| --- | --- |
+| `src/` | Dashboard. Five components; **all output is simulated** (no GitHub calls) |
+| `.github/GITHUB_APP_MANIFEST.json` | App manifest (webhook inactive; URL placeholder must be substituted before use) |
+| `.github/workflows/agent-pr-check.yml` | Branch-name, attribution, typecheck, build, secret-scan checks |
+| `.github/scripts/scan_secrets.py` | Secret scanner used by CI |
+| `.github/dependabot.yml` | Weekly npm + Actions updates |
+| `.githooks/pre-commit` | Local secret scan (enable with `core.hooksPath`) |
+| `INSTALL_GITHUB_APP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODEOWNERS` | Docs and review routing |
+| `outputs/AI-AGENTS-completion-guide.md` | Gap analysis and remaining work |
 
-There is **no source code, no package manifest, no test suite, no CI, and no
-build system yet.** Do not report or assume otherwise.
-
-`README.md` describes the repo's intended contents in the present tense, but
-those files are **not yet written**:
-
-| Referenced in README | Exists? | Purpose when created |
-| --- | --- | --- |
-| `INSTALL_GITHUB_APP.md` | Yes | Step-by-step GitHub App install/config |
-| `.github/GITHUB_APP_MANIFEST.json` | Yes | App manifest (permissions, webhook, events) |
-| `CONTRIBUTING.md` | Yes | Contributor and agent guidelines |
-| `CODEOWNERS` | Yes | Review ownership routing |
-| `.github/workflows/agent-pr-check.yml` | Yes | Checks on agent-created PRs |
-
-Treat that table as the backlog. When a task touches one of those items, create
-the file rather than assuming it is somewhere you haven't looked. When you do
-create one, update the table above so this file stays accurate.
-
-Because the tree is nearly empty, **verify before you generalize**: a quick
-`git ls-files` is cheaper than an assumption about structure that no longer holds
-once real code lands.
+**Not yet present:** real agent scripts (token minting, PR creation), a webhook
+receiver, and any test suite. Do not report otherwise.
 
 ## Working conventions
 
@@ -50,6 +38,7 @@ once real code lands.
 The project uses a standard TypeScript / Vite / React stack with Node.js 22 runtime:
 
 - Dependency manifest: `package.json`
+- Typecheck: `npm run lint` (`tsc --noEmit`)
 - Build command: `npm run build`
 - Dev server: `npm run dev` (starts on port 3000, host localhost by default; use `VITE_HOST=0.0.0.0` to expose to network)
 - Continuous Integration: `.github/workflows/agent-pr-check.yml`
@@ -59,7 +48,8 @@ The project uses a standard TypeScript / Vite / React stack with Node.js 22 runt
 Documented invocations:
 - `npm install` — install dependencies
 - `npm run dev` — start local development server at `http://localhost:3000` (restricted to localhost by default for security)
-- `npm run build` — typecheck and compile production bundle into `dist/`
+- `npm run lint` — typecheck only
+- `npm run build` — compile production bundle into `dist/` (does not typecheck; CI runs lint separately)
 - `npm run preview` — preview production build locally
 
 For network access (shared/cloud environments), set environment variables:

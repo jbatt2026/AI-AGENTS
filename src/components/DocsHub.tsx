@@ -63,7 +63,7 @@ AI-AGENTS (github.com/jbatt2026/AI-AGENTS) hosts tools, scripts, and integration
 ## Working Conventions
 - Language: Node.js 22 + TypeScript + Vite + React
 - Build: npm run build
-- Dev: npm run dev (port 3000, host 0.0.0.0)`,
+- Dev: npm run dev (port 3000, localhost only; set VITE_HOST=0.0.0.0 for network access)`,
   },
   {
     id: 'contributing',

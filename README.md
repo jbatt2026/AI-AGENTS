@@ -16,3 +16,12 @@ How agents should be used
 3. Agents (Hermes, Claude, or other bots) use the app's installation token to create branches and open pull requests.
 
 For detailed installation and configuration steps for the GitHub App, see INSTALL_GITHUB_APP.md.
+
+## Run locally
+```bash
+npm install
+npm run dev      # http://localhost:3000, localhost only
+npm run lint     # typecheck
+npm run build
+```
+Set `VITE_HOST=0.0.0.0` to expose the dev server on a trusted network. The dashboard is an interactive simulator; it does not contact GitHub. See SECURITY.md for credential handling.

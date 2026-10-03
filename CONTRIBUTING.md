@@ -21,7 +21,7 @@ Every Pull Request and issue comment authored by an agent MUST end with an attri
 ```
 
 ### 3. Verification Before Push
-- Always run local validation scripts (`npm run build`, `npm run dev`) before opening a pull request.
+- Always run local validation (`npm run lint`, `npm run build`) before opening a pull request.
 - Ensure all CI workflow checks pass. Never skip or disable a test to force a green check.
 
 ### 4. Secret Safety
