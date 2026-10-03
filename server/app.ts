@@ -34,7 +34,9 @@ export function createApp(d: AppDeps) {
   let history: Anthropic.MessageParam[] = [];
   let running: AbortController | null = null;
 
-  // DNS-rebinding and cross-site defence, then a bearer token against other local processes.
+  // DNS-rebinding and cross-site defence, then a bearer token. The token stops other users and
+  // direct hits on this port; it does not stop a process of the same user, which can read the token
+  // file or call the Vite proxy.
   app.use('/api/*', async (c, next) => {
     if (!d.allowedHosts.includes(c.req.header('host') ?? '')) return c.json({ error: 'bad host' }, 403);
     const origin = c.req.header('origin');
@@ -78,16 +80,30 @@ export function createApp(d: AppDeps) {
 
   app.post('/api/chat', async (c) => {
     if (!d.client) return c.json({ error: 'ANTHROPIC_API_KEY is not set on the server' }, 503);
+    // Claim the slot before the first await: otherwise two requests can both pass this check.
     if (running) return c.json({ error: 'a turn is already running' }, 409);
-    const body = (await c.req.json().catch(() => null)) as { message?: unknown } | null;
-    const message = body?.message;
-    if (typeof message !== 'string' || !message.trim()) return c.json({ error: 'message required' }, 400);
-    if (message.length > MAX_MESSAGE_CHARS) return c.json({ error: 'message too long' }, 413);
-    if (history.length >= MAX_HISTORY) return c.json({ error: 'conversation too long; start a new chat' }, 413);
-
-    const client = d.client;
     const ac = new AbortController();
     running = ac;
+    const release = () => {
+      if (running === ac) running = null;
+    };
+
+    const body = (await c.req.json().catch(() => null)) as { message?: unknown } | null;
+    const message = body?.message;
+    if (typeof message !== 'string' || !message.trim()) {
+      release();
+      return c.json({ error: 'message required' }, 400);
+    }
+    if (message.length > MAX_MESSAGE_CHARS) {
+      release();
+      return c.json({ error: 'message too long' }, 413);
+    }
+    if (history.length >= MAX_HISTORY) {
+      release();
+      return c.json({ error: 'conversation too long; start a new chat' }, 413);
+    }
+
+    const client = d.client;
     const mark = history.length;
     history.push({ role: 'user', content: message });
 
@@ -109,11 +125,12 @@ export function createApp(d: AppDeps) {
           signal: ac.signal,
         });
       } catch (err) {
-        // Roll back so a failed turn cannot leave a dangling tool_use in the history.
-        history.length = mark;
+        // Completed tool pairs stay in the history so the model still knows which writes
+        // happened; only a turn that made no progress drops its user message.
+        if (history.length === mark + 1) history.length = mark;
         await send({ type: 'error', message: err instanceof Error ? err.message : String(err) });
       } finally {
-        running = null;
+        release();
         await queue;
       }
     });

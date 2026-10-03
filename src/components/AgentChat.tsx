@@ -45,7 +45,8 @@ function applyEvent(items: Item[], e: AgentEvent): Item[] {
 function ToolCard({ item }: { item: Extract<Item, { kind: 'tool' }> }) {
   const [open, setOpen] = useState(false);
   const pending = item.result === undefined;
-  const prs = item.result?.match(URL_RE) ?? [];
+  // Only links from the agent's own open_pr result are shown as PR links.
+  const prs = item.name === 'open_pr' && !item.isError ? (item.result?.match(URL_RE) ?? []) : [];
   return (
     <div className={`rounded-lg border text-xs ${item.isError ? 'border-red-900/60 bg-red-950/20' : 'border-slate-800 bg-slate-900/60'}`}>
       <button onClick={() => setOpen(!open)} className="w-full flex items-center gap-2 px-3 py-2 text-left text-slate-300">

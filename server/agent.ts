@@ -31,7 +31,8 @@ Rules:
 - Keep changes small and scoped to the request. Say what you are about to write before you write it, and summarise what you did afterwards, including PR links.
 - If a tool is refused, do not try to work around the guardrail; explain it to the user.`;
 
-const fence = (text: string) => `<tool_data>\n${text}\n</tool_data>`;
+// Neutralise any closing tag in the data so it cannot end the untrusted block early.
+const fence = (text: string) => `<tool_data>\n${text.replace(/<\/tool_data/gi, '&lt;/tool_data')}\n</tool_data>`;
 
 export async function runTurn(opts: {
   client: MessagesClient;

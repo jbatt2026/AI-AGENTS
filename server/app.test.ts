@@ -80,4 +80,32 @@ describe('chat', () => {
     expect(text).toContain('"type":"text"');
     expect(text).toContain('"reason":"end_turn"');
   });
+
+  it('rejects a second concurrent chat instead of running both', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: MessagesClient = {
+      messages: {
+        stream() {
+          return {
+            on() {
+              return this;
+            },
+            async finalMessage() {
+              await gate;
+              return { content: [{ type: 'text', text: 'x', citations: null }] } as never;
+            },
+          };
+        },
+      },
+    };
+    const app = createApp(deps({ client: slow }));
+    const post = () => app.request('/api/chat', { method: 'POST', headers: headers(), body: JSON.stringify({ message: 'a' }) });
+    const [r1, r2] = await Promise.all([post(), post()]);
+    expect([r1.status, r2.status].sort()).toEqual([200, 409]);
+    release();
+    await Promise.all([r1.status === 200 ? r1.text() : r2.text()]);
+    // slot is free again afterwards
+    expect((await post()).status).toBe(200);
+  });
 });

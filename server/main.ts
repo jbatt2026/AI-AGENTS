@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, rmSync, writeFileSync } from 'node:fs';
 import Anthropic from '@anthropic-ai/sdk';
 import { serve } from '@hono/node-server';
 import { createApp } from './app';
@@ -38,7 +38,12 @@ if (GITHUB_APP_ID && GITHUB_APP_PRIVATE_KEY && GITHUB_APP_INSTALLATION_ID && GIT
 
 // The token lives in a 0600 file; the Vite dev proxy reads it, the browser never sees it.
 const token = randomBytes(32).toString('hex');
-writeFileSync('.agent-token', token, { mode: 0o600 });
+// Remove first so a stale file or symlink cannot keep loose permissions or redirect the write.
+rmSync('.agent-token', { force: true });
+writeFileSync('.agent-token', token, { mode: 0o600, flag: 'wx' });
+chmodSync('.agent-token', 0o600);
+process.on('exit', () => rmSync('.agent-token', { force: true }));
+for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => process.exit(0));
 
 const logPath = '.agent-log.jsonl';
 const recent: Record<string, unknown>[] = [];

@@ -8,10 +8,14 @@ export interface PRSummary {
   draft: boolean;
   url: string;
   head: string;
+  /** owner/repo the head branch lives in (differs for forks). */
+  headRepo: string;
 }
 
 /** Everything the agent can do on GitHub. No merge, delete, or force-push exists. */
 export interface GitHubPort {
+  /** owner/repo this port is pinned to. */
+  readonly fullName: string;
   readFile(path: string, ref?: string): Promise<string>;
   listDir(path: string, ref?: string): Promise<string[]>;
   listPRs(): Promise<PRSummary[]>;
@@ -47,7 +51,7 @@ export function createGitHub(cfg: GitHubConfig): GitHubPort {
     state: string;
     draft?: boolean;
     html_url: string;
-    head: { ref: string };
+    head: { ref: string; repo: { full_name: string } | null };
   }): PRSummary => ({
     number: p.number,
     title: p.title,
@@ -55,9 +59,11 @@ export function createGitHub(cfg: GitHubConfig): GitHubPort {
     draft: Boolean(p.draft),
     url: p.html_url,
     head: p.head.ref,
+    headRepo: p.head.repo?.full_name ?? '',
   });
 
   return {
+    fullName: `${owner}/${repo}`,
     async readFile(path, ref) {
       const { data } = await octokit.repos.getContent({ owner, repo, path, ref: ref ?? baseBranch });
       if (Array.isArray(data) || data.type !== 'file') throw new Error(`${path} is not a file`);

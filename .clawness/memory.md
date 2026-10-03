@@ -8,5 +8,5 @@
 ## Always
 
 ## Lessons
-- package.json dev/preview must stay bare `vite`: CLI --host flags override vite.config.ts localhost default
+- package.json dev:web/preview must stay bare `vite`: CLI --host flags override vite.config.ts localhost default
 - server/guardrails.test.ts: build secret fixtures by concatenation or scan_secrets.py fails CI on the test file

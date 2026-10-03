@@ -5,6 +5,7 @@ import {
   WriteBudget,
   assertAgentBranch,
   assertCommit,
+  assertPublishable,
   assertSafePath,
   withFooter,
 } from './guardrails';
@@ -135,6 +136,7 @@ export async function runTool(
         assertAgentBranch(branch);
         const files = parseFiles(input.files);
         assertCommit(files);
+        assertPublishable('Commit message', message);
         ctx.budget.consume();
         const sha = await gh.commitFiles(branch, message, files);
         result = ok(`Committed ${files.length} file(s) to ${branch}: ${sha}`);
@@ -142,22 +144,27 @@ export async function runTool(
       }
       case 'open_pr': {
         const head = field<string>(input, 'head', 'string');
+        const title = field<string>(input, 'title', 'string');
+        const prBody = field<string>(input, 'body', 'string');
         assertAgentBranch(head);
+        assertPublishable('PR title', title, 300);
+        assertPublishable('PR body', prBody);
         ctx.budget.consume();
-        const pr = await gh.openDraftPR(
-          head,
-          field<string>(input, 'title', 'string'),
-          withFooter(field<string>(input, 'body', 'string')),
-        );
+        const pr = await gh.openDraftPR(head, title, withFooter(prBody));
         result = ok(`Opened draft PR #${pr.number}: ${pr.url}`);
         break;
       }
       case 'comment_pr': {
         const number = field<number>(input, 'number', 'number');
+        const text = field<string>(input, 'body', 'string');
+        assertPublishable('Comment', text);
         const pr = await gh.getPR(number);
         assertAgentBranch(pr.head);
+        // A fork can reuse an agent/ branch name, and closed PRs are not ours to reopen discussion on.
+        if (pr.headRepo !== gh.fullName) throw new GuardrailError(`PR #${number} is not from this repository.`);
+        if (pr.state !== 'open') throw new GuardrailError(`PR #${number} is not open.`);
         ctx.budget.consume();
-        await gh.commentPR(number, withFooter(field<string>(input, 'body', 'string')));
+        await gh.commentPR(number, withFooter(text));
         result = ok(`Commented on #${number}.`);
         break;
       }

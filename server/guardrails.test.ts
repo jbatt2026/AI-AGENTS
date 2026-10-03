@@ -5,6 +5,7 @@ import {
   WriteBudget,
   assertAgentBranch,
   assertCommit,
+  assertPublishable,
   assertSafePath,
   findSecret,
   withFooter,
@@ -36,6 +37,18 @@ describe('assertSafePath', () => {
     '.githooks/pre-commit',
     'CODEOWNERS',
     'server/guardrails.ts',
+    'server/tools.ts',
+    'vite.config.ts',
+    // a file named like a protected directory would replace the whole tree
+    '.github',
+    '.githooks',
+    'server',
+    'CODEOWNERS/x',
+    'docs/CODEOWNERS',
+    '.GitHub/workflows/x.yml',
+    'Server/tools.ts',
+    '.envrc',
+    'id_rsa',
     '.env.local',
     'config/.env',
     'key.pem',
@@ -53,6 +66,14 @@ describe('findSecret', () => {
     expect(findSecret('k = ' + 'AKIA' + 'ABCDEFGHIJKLMNOP')).toMatch(/AWS/);
     expect(findSecret('api_key = "' + 'abcdefghijklmnopqrstuvwxyz' + '123456"')).toMatch(/api_key/);
     expect(findSecret('x ' + 'sk-ant-' + 'abcdefghijklmnopqrstuvwxyz')).toMatch(/Anthropic/);
+  });
+  it('catches JSON keys, unquoted values, PGP/encrypted keys and long lines', () => {
+    const body = 'A'.repeat(64);
+    expect(findSecret('{"api_key": "' + 'abcdefghijklmnopqrstuvwxyz' + '123456"}')).toMatch(/api_key/);
+    expect(findSecret('password: ' + 'hunter2hunter2' + 'hunter2hunter2')).toMatch(/password/);
+    expect(findSecret(`-----BEGIN PGP PRIVATE KEY BLOCK-----\n${body}`)).toMatch(/private key/);
+    expect(findSecret(`-----BEGIN ENCRYPTED PRIVATE KEY-----\n${body}`)).toMatch(/private key/);
+    expect(findSecret('x'.repeat(5000) + ' AKIA' + 'ABCDEFGHIJKLMNOP')).toMatch(/AWS/);
   });
   it('ignores placeholders and prose', () => {
     expect(findSecret('-----BEGIN RSA PRIVATE KEY-----\\n...')).toBeNull();
@@ -72,6 +93,14 @@ describe('assertCommit', () => {
     expect(() => assertCommit(many)).toThrow(/Too many/);
     expect(() => assertCommit([{ path: '.github/x.yml', content: '' }])).toThrow(/protected/);
     expect(() => assertCommit([{ path: 'a', content: 'tok ghp_' + 'a'.repeat(36) }])).toThrow(/credential/);
+  });
+});
+
+describe('assertPublishable', () => {
+  it('rejects credentials and oversize text', () => {
+    expect(() => assertPublishable('Comment', 'ok')).not.toThrow();
+    expect(() => assertPublishable('Comment', 'tok ghp_' + 'a'.repeat(36))).toThrow(/credential/);
+    expect(() => assertPublishable('Title', 'x'.repeat(301), 300)).toThrow(/exceeds/);
   });
 });
 
