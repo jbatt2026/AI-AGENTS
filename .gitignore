@@ -34,5 +34,9 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 
+# Agent server runtime files (token, audit log)
+.agent-token
+.agent-log.jsonl
+
 # Session files
 .vite/
