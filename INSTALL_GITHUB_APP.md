@@ -74,9 +74,10 @@ GITHUB_TARGET_REPO="jbatt2026/AI-AGENTS"
 
 ---
 
-## Step 5: Try the Dashboard
+## Step 5: Run the Agent
 
 ```bash
+cp .env.example .env.local   # add ANTHROPIC_API_KEY and the App values from Step 4
 npm run dev
 ```
-Open `http://localhost:3000` (localhost only; set `VITE_HOST=0.0.0.0` to expose it on a trusted network). The **Auth Simulator** and **PR Pipeline Workbench** are interactive demos with canned output: they do not contact GitHub, and this repository does not yet ship a script that mints installation tokens or opens PRs.
+Open `http://localhost:3000` (localhost only; set `VITE_HOST=0.0.0.0` to expose the GUI on a trusted network) and use the **Agent Chat** tab. The agent server mints installation tokens itself with `@octokit/auth-app`; the key never reaches the browser. Use a scratch repository for `GITHUB_TARGET_REPO` until you trust the setup. The Auth Simulator and PR Pipeline Workbench tabs are demos with canned output and do not contact GitHub.

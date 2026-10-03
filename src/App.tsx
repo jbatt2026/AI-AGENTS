@@ -6,10 +6,11 @@ import { ManifestBuilder } from './components/ManifestBuilder';
 import { TokenAuthSimulator } from './components/TokenAuthSimulator';
 import { AgentScriptsRunner } from './components/AgentScriptsRunner';
 import { DocsHub } from './components/DocsHub';
+import { AgentChat } from './components/AgentChat';
 import { GitPullRequest, ShieldCheck, Terminal, BookOpen, CheckCircle } from 'lucide-react';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('workbench');
+  const [activeTab, setActiveTab] = useState<TabType>('chat');
   const [openPRCount, setOpenPRCount] = useState<number>(1);
 
   return (
@@ -19,7 +20,8 @@ export function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Quick Summary Metrics Bar */}
+        {/* Quick Summary Metrics Bar (simulated demo data, so not shown beside the live agent) */}
+        {activeTab !== 'chat' && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           <div
             onClick={() => setActiveTab('workbench')}
@@ -72,8 +74,10 @@ export function App() {
             <span className="text-[11px] text-amber-400 mt-1 block">CLAUDE, Install, CI</span>
           </div>
         </div>
+        )}
 
         {/* Tab Views */}
+        {activeTab === 'chat' && <AgentChat />}
         {activeTab === 'workbench' && <PRWorkflowWorkbench onPRCountChange={setOpenPRCount} />}
         {activeTab === 'manifest' && <ManifestBuilder />}
         {activeTab === 'auth' && <TokenAuthSimulator />}

@@ -1,4 +1,4 @@
-export type TabType = 'workbench' | 'manifest' | 'auth' | 'scripts' | 'docs';
+export type TabType = 'chat' | 'workbench' | 'manifest' | 'auth' | 'scripts' | 'docs';
 
 export interface GitHubAppManifest {
   name: string;

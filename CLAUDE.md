@@ -19,7 +19,8 @@ A React 18 / Vite 6 / Tailwind 4 dashboard plus GitHub App scaffolding. Verify w
 
 | Path | Purpose |
 | --- | --- |
-| `src/` | Dashboard. Five components; **all output is simulated** (no GitHub calls) |
+| `src/` | Dashboard. `AgentChat` talks to the live agent via `src/lib/agentClient.ts`; the other four tabs are **simulated demos** |
+| `server/` | Local Node agent server (Hono, 127.0.0.1): Claude tool-use loop (`agent.ts`), GitHub tools (`tools.ts`, `github.ts`), hard limits (`guardrails.ts`), bearer-token/Host/Origin checks (`app.ts`) |
 | `.github/GITHUB_APP_MANIFEST.json` | App manifest (webhook inactive; URL placeholder must be substituted before use) |
 | `.github/workflows/agent-pr-check.yml` | Branch-name, attribution, typecheck, build, secret-scan checks |
 | `.github/scripts/scan_secrets.py` | Secret scanner used by CI |
@@ -28,8 +29,7 @@ A React 18 / Vite 6 / Tailwind 4 dashboard plus GitHub App scaffolding. Verify w
 | `INSTALL_GITHUB_APP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODEOWNERS` | Docs and review routing |
 | `outputs/AI-AGENTS-completion-guide.md` | Gap analysis and remaining work |
 
-**Not yet present:** real agent scripts (token minting, PR creation), a webhook
-receiver, and any test suite. Do not report otherwise.
+**Not yet present:** a webhook receiver. Tests are Vitest (`npm test`), covering `server/` and `src/lib/`. The write guardrails live in `server/guardrails.ts` and must not be loosened by prompt or tool changes; the agent cannot write that file.
 
 ## Working conventions
 
@@ -38,7 +38,7 @@ receiver, and any test suite. Do not report otherwise.
 The project uses a standard TypeScript / Vite / React stack with Node.js 22 runtime:
 
 - Dependency manifest: `package.json`
-- Typecheck: `npm run lint` (`tsc --noEmit`)
+- Typecheck: `npm run lint` (`tsc` for `src/` and `server/`); tests: `npm test`
 - Build command: `npm run build`
 - Dev server: `npm run dev` (starts on port 3000, host localhost by default; use `VITE_HOST=0.0.0.0` to expose to network)
 - Continuous Integration: `.github/workflows/agent-pr-check.yml`
@@ -47,7 +47,7 @@ The project uses a standard TypeScript / Vite / React stack with Node.js 22 runt
 
 Documented invocations:
 - `npm install` — install dependencies
-- `npm run dev` — start local development server at `http://localhost:3000` (restricted to localhost by default for security)
+- `npm run dev` — start the agent server (127.0.0.1:8787) and the GUI at `http://localhost:3000` (localhost only by default)
 - `npm run lint` — typecheck only
 - `npm run build` — compile production bundle into `dist/` (does not typecheck; CI runs lint separately)
 - `npm run preview` — preview production build locally
