@@ -2,7 +2,7 @@
 
 **Date:** August 31, 2026
 **Repository:** https://github.com/jbatt2026/AI-AGENTS
-**Status:** ✅ SECURE - No open PRs. Latest security audit merged.
+**Status:** Historical snapshot (2026-08-31). Superseded in part: the dev-server binding claim below was not actually true until `package.json` stopped hardcoding `--host 0.0.0.0`, and the manifest webhook placeholder `${GITHUB_WEBHOOK_URL}` is not expanded by GitHub. See `outputs/AI-AGENTS-completion-guide.md` for the current gap list.
 
 ---
 
@@ -13,7 +13,7 @@
 ✅ **Gateway/Port configuration hardened**
 ✅ **Comprehensive security controls implemented**
 
-The repository has completed a comprehensive security audit (commit `2c6136a`). All blockers have been addressed and the codebase is in a secure, production-ready state.
+The repository has completed a comprehensive security audit (commit `2c6136a`). All blockers have been addressed and the items below were addressed at that commit. This is a point-in-time review, not a guarantee of production readiness; no agent automation scripts or tests existed at the time.
 
 ---
 

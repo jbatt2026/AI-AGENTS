@@ -8,3 +8,4 @@
 ## Always
 
 ## Lessons
+- package.json dev/preview must stay bare `vite`: CLI --host flags override vite.config.ts localhost default
