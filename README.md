@@ -20,8 +20,10 @@ For detailed installation and configuration steps for the GitHub App, see INSTAL
 ## Run locally
 ```bash
 npm install
-npm run dev      # http://localhost:3000, localhost only
-npm run lint     # typecheck
-npm run build
+cp .env.example .env.local   # then fill in ANTHROPIC_API_KEY (and the GitHub App values for writes)
+npm run dev                  # GUI http://localhost:3000 + agent server 127.0.0.1:8787
+npm run lint && npm test && npm run build
 ```
-Set `VITE_HOST=0.0.0.0` to expose the dev server on a trusted network. The dashboard is an interactive simulator; it does not contact GitHub. See SECURITY.md for credential handling.
+Open the **Agent Chat** tab. The Claude agent can read the target repo and, within hard server-side limits, open **draft** PRs from `agent/<name>-<slug>` branches: it cannot merge, touch `main`, edit `.github/`, `.githooks/`, `CODEOWNERS` or credentials, or commit anything that looks like a secret. Each session has a write budget (`AGENT_WRITE_BUDGET`, default 10) and a Stop button; every tool call is logged to `.agent-log.jsonl`. Point `GITHUB_TARGET_REPO` at a scratch repo while testing. The other tabs are interactive demos with canned output.
+
+Set `VITE_HOST=0.0.0.0` only on a trusted network; the agent server itself always binds 127.0.0.1. See SECURITY.md for credential handling.
