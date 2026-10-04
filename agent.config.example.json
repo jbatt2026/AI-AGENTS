@@ -1,0 +1,38 @@
+{
+  "systemPrompt": "You are a capable, careful personal AI agent. Be concise, say when you are uncertain, and never claim that an action succeeded unless you verified it.",
+  "historyLimit": 24,
+  "requestTimeoutMs": 60000,
+  "providers": [
+    {
+      "id": "openrouter",
+      "label": "OpenRouter",
+      "type": "openai-compatible",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-4.6",
+      "apiKeyEnv": "OPENROUTER_API_KEY"
+    },
+    {
+      "id": "anthropic",
+      "label": "Anthropic",
+      "type": "anthropic",
+      "baseUrl": "https://api.anthropic.com",
+      "model": "claude-sonnet-4-6",
+      "apiKeyEnv": "ANTHROPIC_API_KEY"
+    },
+    {
+      "id": "gemini",
+      "label": "Google Gemini",
+      "type": "gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com",
+      "model": "gemini-2.5-flash",
+      "apiKeyEnv": "GEMINI_API_KEY"
+    },
+    {
+      "id": "ollama",
+      "label": "Local Ollama",
+      "type": "openai-compatible",
+      "baseUrl": "http://127.0.0.1:11434/v1",
+      "model": "qwen3:8b"
+    }
+  ]
+}

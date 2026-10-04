@@ -6,10 +6,11 @@ import { ManifestBuilder } from './components/ManifestBuilder';
 import { TokenAuthSimulator } from './components/TokenAuthSimulator';
 import { AgentScriptsRunner } from './components/AgentScriptsRunner';
 import { DocsHub } from './components/DocsHub';
-import { GitPullRequest, ShieldCheck, Terminal, BookOpen, CheckCircle } from 'lucide-react';
+import { BrainGateway } from './components/BrainGateway';
+import { GitPullRequest, ShieldCheck, Terminal, BookOpen, CheckCircle, RadioTower } from 'lucide-react';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('workbench');
+  const [activeTab, setActiveTab] = useState<TabType>('gateway');
   const [openPRCount, setOpenPRCount] = useState<number>(1);
 
   return (
@@ -20,7 +21,19 @@ export function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Quick Summary Metrics Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <div
+            onClick={() => setActiveTab('gateway')}
+            className="cursor-pointer bg-slate-900/60 hover:bg-slate-900 border border-slate-800/80 hover:border-slate-700 rounded-xl p-4 transition-all"
+          >
+            <div className="flex items-center justify-between text-slate-400 mb-1">
+              <span className="text-xs font-semibold uppercase tracking-wider">Telegram Agent</span>
+              <RadioTower className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div className="text-xl font-bold text-white">Gateway Ready</div>
+            <span className="text-[11px] text-cyan-400 mt-1 block">4 brain platforms</span>
+          </div>
+
           <div
             onClick={() => setActiveTab('workbench')}
             className="cursor-pointer bg-slate-900/60 hover:bg-slate-900 border border-slate-800/80 hover:border-slate-700 rounded-xl p-4 transition-all"
@@ -74,6 +87,7 @@ export function App() {
         </div>
 
         {/* Tab Views */}
+        {activeTab === 'gateway' && <BrainGateway />}
         {activeTab === 'workbench' && <PRWorkflowWorkbench onPRCountChange={setOpenPRCount} />}
         {activeTab === 'manifest' && <ManifestBuilder />}
         {activeTab === 'auth' && <TokenAuthSimulator />}
@@ -83,7 +97,7 @@ export function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           <div className="flex items-center space-x-2">
             <span>Repository:</span>
             <a

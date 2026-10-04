@@ -14,18 +14,12 @@ The repository is **public**. Assume anything committed here is world-readable.
 
 ## Current state — read this first
 
-This repo is a scaffold. As of the latest commit it contains exactly two files:
+This repository contains a React/Vite automation studio and a runnable Node.js
+Telegram agent gateway. The gateway lives in `agent/`, supports ordered
+multi-provider fallback, and is configured through ignored `.env.local` and
+`agent.config.json` files. Its tests use Node's built-in test runner.
 
-```
-README.md     # repo purpose and agent guidance
-CLAUDE.md     # this file
-```
-
-There is **no source code, no package manifest, no test suite, no CI, and no
-build system yet.** Do not report or assume otherwise.
-
-`README.md` describes the repo's intended contents in the present tense, but
-those files are **not yet written**:
+The repository also includes these GitHub automation and policy files:
 
 | Referenced in README | Exists? | Purpose when created |
 | --- | --- | --- |
@@ -35,13 +29,11 @@ those files are **not yet written**:
 | `CODEOWNERS` | Yes | Review ownership routing |
 | `.github/workflows/agent-pr-check.yml` | Yes | Checks on agent-created PRs |
 
-Treat that table as the backlog. When a task touches one of those items, create
-the file rather than assuming it is somewhere you haven't looked. When you do
-create one, update the table above so this file stays accurate.
+These files are implemented. Verify their current contents before changing
+them; the table is an inventory rather than a backlog.
 
-Because the tree is nearly empty, **verify before you generalize**: a quick
-`git ls-files` is cheaper than an assumption about structure that no longer holds
-once real code lands.
+**Verify before you generalize**: a quick `git ls-files` is cheaper than an
+assumption about structure that may no longer hold once new code lands.
 
 ## Working conventions
 
@@ -53,6 +45,10 @@ The project uses a standard TypeScript / Vite / React stack with Node.js 22 runt
 - Build command: `npm run build`
 - Dev server: `npm run dev` (starts on port 3000, host localhost by default; use `VITE_HOST=0.0.0.0` to expose to network)
 - Continuous Integration: `.github/workflows/agent-pr-check.yml`
+- Agent setup: `npm run agent:setup`
+- Agent health check: `npm run agent:doctor`
+- Agent runtime: `npm run agent:start`
+- Tests: `npm test`
 
 ### Commands
 
@@ -81,7 +77,7 @@ git config --local core.hooksPath .githooks
 chmod +x .githooks/pre-commit  # On Unix/macOS
 ```
 
-The `.env.local` file is git-ignored and safe for local development. For CI/CD:
+The `.env.local` file is git-ignored but not encrypted; restrict it to the local user (`chmod 600 .env.local`). For CI/CD:
 - Use GitHub Secrets (Settings > Secrets > Actions) for GitHub Actions workflows
 - Use your cloud platform's secret manager (AWS Secrets Manager, GCP Secret Manager) for deployed services
 - Never commit `.env.local`, `.env.pem`, or any credential files

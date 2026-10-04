@@ -13,7 +13,7 @@ This document outlines security best practices for all developers and AI agents 
 - Push to public repositories with exposed secrets
 
 ### ✅ DO
-- Store credentials in `.env.local` (git-ignored, never committed)
+- Store development credentials in a mode-0600 `.env.local` file (git-ignored, never committed, but not encrypted)
 - Use GitHub Actions Secrets for CI/CD workflows
 - Use cloud platform secret managers (AWS Secrets Manager, GCP Secret Manager) for deployments
 - Reference credentials via environment variables only
@@ -40,7 +40,8 @@ cp .env.example .env.local
 Local `.githooks/pre-commit` scans before commit:
 - ✓ Prevents `.env.local` from being committed
 - ✓ Detects private keys (RSA, EC, OpenSSH formats)
-- ✓ Warns about hardcoded API keys and tokens
+- ✓ Blocks hardcoded API keys and tokens in the exact staged content
+- ✓ Redacts matched credential values from scanner output
 - ✓ Can be bypassed with `git commit --no-verify` (only in emergencies)
 
 ### GitHub Actions CI Workflow
@@ -60,6 +61,8 @@ Local `.githooks/pre-commit` scans before commit:
 | GitHub Token | `ghp_` or `ghu_` prefix | `ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ1234` |
 | AWS Access Key | `AKIA` + 16 alphanumerics | `AKIAIOSFODNN7EXAMPLE` |
 | API Key | `api_key=<20+ chars>` | `api_key="sk_test_4eC39HqLyjWDarhtT..."` |
+| Telegram bot token | Numeric bot id + token | Use `<telegram-bot-token>` in examples |
+| AI provider key | OpenAI, Anthropic, OpenRouter, Google, Hugging Face | Use `<provider-api-key>` in examples |
 
 ---
 
@@ -85,6 +88,14 @@ The AI-AGENTS GitHub App has been configured with minimal necessary permissions:
 ---
 
 ## 4. Development Server Security
+
+### Telegram gateway
+
+- Unknown Telegram users are ignored without a response.
+- Group chats are disabled unless `TELEGRAM_ALLOW_GROUPS=true` is set explicitly.
+- Remote model endpoints must use HTTPS. HTTP is accepted only for loopback services.
+- Provider credentials belong in `.env.local`; credential headers are rejected in `agent.config.json`.
+- Gemini API keys are sent in a request header, not a query string.
 
 ### Port 3000 Configuration
 
@@ -179,8 +190,11 @@ npm run lint
 # 2. Run build
 npm run build
 
-# 3. Check for secret patterns manually
-grep -r "BEGIN.*PRIVATE KEY\|api_key=\|ghp_\|AKIA" . --exclude-dir=node_modules
+# 3. Run the repository secret scanner
+python3 .github/scripts/scan_secrets.py .
+
+# Optional release audit: scan all reachable Git history without printing values
+python3 .github/scripts/scan_secrets.py --history .
 
 # 4. Review .env changes
 git diff --cached .env.example

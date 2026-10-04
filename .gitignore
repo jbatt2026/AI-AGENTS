@@ -24,6 +24,10 @@ build/
 .env.pem
 *.pem
 
+# Local agent configuration and runtime state
+agent.config.json
+.agent-data/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

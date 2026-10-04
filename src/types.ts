@@ -1,4 +1,4 @@
-export type TabType = 'workbench' | 'manifest' | 'auth' | 'scripts' | 'docs';
+export type TabType = 'gateway' | 'workbench' | 'manifest' | 'auth' | 'scripts' | 'docs';
 
 export interface GitHubAppManifest {
   name: string;
@@ -17,9 +17,7 @@ export interface GitHubAppManifest {
 export interface AgentCredentials {
   appId: string;
   installationId: string;
-  privateKey: string;
   targetRepo: string;
-  webhookSecret: string;
 }
 
 export interface AgentTask {

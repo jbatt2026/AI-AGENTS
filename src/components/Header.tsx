@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot, GitPullRequest, ShieldCheck, FileCode, Terminal, BookOpen, ExternalLink } from 'lucide-react';
+import { Bot, GitPullRequest, ShieldCheck, FileCode, Terminal, BookOpen, ExternalLink, RadioTower } from 'lucide-react';
 import { TabType } from '../types';
 
 interface HeaderProps {
@@ -10,6 +10,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, openPRCount }) => {
   const tabs = [
+    { id: 'gateway' as TabType, label: 'Agent Gateway', icon: RadioTower },
     { id: 'workbench' as TabType, label: 'PR Workbench', icon: GitPullRequest, badge: openPRCount > 0 ? openPRCount : undefined },
     { id: 'manifest' as TabType, label: 'App Manifest', icon: FileCode },
     { id: 'auth' as TabType, label: 'Auth & Tokens', icon: ShieldCheck },

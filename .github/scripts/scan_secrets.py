@@ -24,7 +24,9 @@ step fails the way it always meant to.
 
 from __future__ import annotations
 
+import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -40,9 +42,6 @@ ALLOWLIST = {
     # Documents the detection patterns themselves, including example values.
     "SECURITY.md",
     "PR_AUDIT_REPORT.md",
-    # Placeholder values, by design: they show the shape, never a real key.
-    ".env.example",
-    "INSTALL_GITHUB_APP.md",
     # The scanner and the hook that runs the same checks.
     ".github/scripts/scan_secrets.py",
     ".githooks/pre-commit",
@@ -59,25 +58,53 @@ PEM_BODY = re.compile(
 
 # Long, high-signal credential literals assigned to a credential-ish name.
 ASSIGNED_SECRET = re.compile(
-    r"(?i)(api[_-]?key|bearer[_-]?token|access[_-]?token|oauth[_-]?token|"
-    r"secret[_-]?key|client[_-]?secret|password)"
-    r"\s*[:=]\s*['\"]([A-Za-z0-9_\-]{20,})['\"]"
+    r"(?i)(?P<name_quote>['\"])?(?P<name>api[_-]?key|bearer[_-]?token|access[_-]?token|oauth[_-]?token|"
+    r"bot[_-]?token|secret[_-]?key|client[_-]?secret|webhook[_-]?secret|password)"
+    r"(?(name_quote)(?P=name_quote))"
+    r"\s*[:=]\s*(?:"
+    r"\"(?P<double_quoted_value>(?:\\.|[^\"\\\r\n]){20,})\"|"
+    r"'(?P<single_quoted_value>(?:\\.|[^'\\\r\n]){20,})'|"
+    r"(?P<unquoted_value>[^\s#;]{20,})"
+    r")"
 )
 
-# Obvious placeholders that should not count as a finding. Matched anywhere in
-# the value, not just at the start: "your_api_key_here_placeholder" is a
-# placeholder even though it begins with neither "your" nor "placeholder"
-# at the position an anchored pattern would check.
-PLACEHOLDER = re.compile(
-    r"(?i)(x{4,}|\.{3,}|<[^>]*>|\$\{[^}]*\}|changeme|placeholder|redacted|"
-    r"dummy|sample|example|your[_-]|insert[_-]|todo|fixme)"
+PLACEHOLDER_WORDS = {"changeme", "dummy", "example", "fixme", "placeholder", "redacted", "sample", "todo"}
+PLACEHOLDER_SHAPES = (
+    re.compile(r"x{4,}", re.IGNORECASE),
+    re.compile(r"\.{3,}"),
+    re.compile(r"<[^>]+>"),
+    re.compile(r"\$\{[^}]+}"),
+    re.compile(r"process\.env\.[A-Za-z_][A-Za-z0-9_]*"),
+    re.compile(r"os\.environ\[\s*(['\"])[A-Za-z_][A-Za-z0-9_]*\1\s*\]"),
 )
+PLACEHOLDER_PREFIX = re.compile(
+    r"(?:your|insert)[_-]"
+    r"(?:(?:openai|anthropic|openrouter|gemini|google|telegram|github|aws|slack|huggingface|hf|stripe)[_-])?"
+    r"(?:(?:api|access|bearer|oauth|bot|client|webhook|private|secret)[_-])?"
+    r"(?:key|token|secret|password|credential)"
+    r"(?:[_-](?:here|value|placeholder))*",
+    re.IGNORECASE,
+)
+
+
+def is_placeholder(value: str) -> bool:
+    """Recognize deliberate complete placeholders without substring bypasses."""
+    normalized = value.strip()
+    lowered = normalized.lower()
+    if lowered in PLACEHOLDER_WORDS or PLACEHOLDER_PREFIX.fullmatch(normalized):
+        return True
+    return any(pattern.fullmatch(normalized) for pattern in PLACEHOLDER_SHAPES)
 
 PROVIDER_TOKENS = [
     ("AWS access key", re.compile(r"AKIA[0-9A-Z]{16}")),
     ("GitHub token", re.compile(r"gh[pusor]_[A-Za-z0-9_]{36,}")),
     ("Slack token", re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}")),
     ("Google API key", re.compile(r"AIza[0-9A-Za-z_\-]{35}")),
+    ("Anthropic API key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}")),
+    ("OpenRouter API key", re.compile(r"sk-or-v1-[A-Za-z0-9_\-]{20,}")),
+    ("OpenAI-style API key", re.compile(r"sk-(?!(?:ant|or-v1)-)(?:proj-|svcacct-)?[A-Za-z0-9_\-]{20,}")),
+    ("Hugging Face token", re.compile(r"hf_[A-Za-z0-9]{20,}")),
+    ("Telegram bot token", re.compile(r"(?<!\d)\d{6,12}:[A-Za-z0-9_\-]{30,}")),
     ("Stripe live key", re.compile(r"sk_live_[0-9a-zA-Z]{24,}")),
     ("Private key in one line", re.compile(r"PRIVATE KEY-----\\n[A-Za-z0-9+/]{40,}")),
 ]
@@ -99,41 +126,157 @@ def candidate_files(root: Path) -> list[Path]:
     return sorted(files)
 
 
-def scan_file(path: Path, rel: str) -> list[tuple[int, str, str]]:
-    """Return (line number, what matched, the offending line) for each finding."""
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return []
+def should_skip(rel: str, *, use_allowlist: bool = True) -> bool:
+    path = Path(rel)
+    return (
+        any(part in SKIP_DIRS for part in path.parts)
+        or path.suffix.lower() in SKIP_SUFFIXES
+        or (use_allowlist and rel in ALLOWLIST)
+    )
 
-    findings: list[tuple[int, str, str]] = []
+
+def scan_text(text: str) -> list[tuple[int, str]]:
+    """Return line numbers and labels without echoing credential material."""
+    findings: list[tuple[int, str]] = []
 
     # PEM bodies can span lines, so search the whole file, then locate the line.
     for match in PEM_BODY.finditer(text):
         line_no = text.count("\n", 0, match.start()) + 1
-        findings.append((line_no, "private key with a base64 body", match.group(0)[:60]))
+        findings.append((line_no, "private key with a base64 body"))
 
     for line_no, line in enumerate(text.splitlines(), start=1):
-        if len(line) > 4000:  # minified or generated; not hand-written secrets
-            continue
-        assigned = ASSIGNED_SECRET.search(line)
-        if assigned and not PLACEHOLDER.search(assigned.group(2)):
-            findings.append((line_no, f"{assigned.group(1)} assigned a literal", line.strip()[:120]))
+        for assigned in ASSIGNED_SECRET.finditer(line):
+            quoted_value = assigned.group("double_quoted_value") or assigned.group("single_quoted_value")
+            assigned_value = quoted_value or assigned.group("unquoted_value")
+            if assigned_value and quoted_value is None:
+                while (
+                    assigned_value
+                    and not is_placeholder(assigned_value)
+                    and assigned_value[-1] in ",)]}`'\""
+                ):
+                    assigned_value = assigned_value[:-1]
+            if assigned_value and not is_placeholder(assigned_value):
+                findings.append((line_no, f"{assigned.group('name')} assigned a literal"))
         for label, pattern in PROVIDER_TOKENS:
             found = pattern.search(line)
-            if found and not PLACEHOLDER.search(found.group(0)):
-                findings.append((line_no, label, line.strip()[:120]))
+            if found and not is_placeholder(found.group(0)):
+                findings.append((line_no, label))
     return findings
 
 
+def staged_files(root: Path) -> list[tuple[str, str]]:
+    names = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    ).stdout.split(b"\0")
+    staged = []
+    for raw_name in names:
+        if not raw_name:
+            continue
+        rel = raw_name.decode("utf-8", errors="surrogateescape")
+        if should_skip(rel):
+            continue
+        content = subprocess.run(
+            ["git", "show", f":{rel}"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        ).stdout.decode("utf-8", errors="replace")
+        staged.append((rel, content))
+    return staged
+
+
+def history_files(root: Path):
+    commits = subprocess.run(
+        ["git", "rev-list", "--all"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    ).stdout
+    blob_paths: dict[str, set[str]] = {}
+    raw_changes = subprocess.run(
+        ["git", "diff-tree", "--stdin", "--root", "-m", "-r", "--no-renames", "--raw", "--no-abbrev", "--no-commit-id", "-z"],
+        cwd=root,
+        input=commits,
+        check=True,
+        capture_output=True,
+    ).stdout.split(b"\0")
+    index = 0
+    while index < len(raw_changes):
+        metadata = raw_changes[index]
+        if not metadata.startswith(b":"):
+            index += 1
+            continue
+        if index + 1 >= len(raw_changes):
+            break
+        parts = metadata.split()
+        raw_path = raw_changes[index + 1]
+        index += 2
+        if len(parts) != 5:
+            continue
+        if parts[1] == b"160000":
+            continue
+        object_id = parts[3].decode("ascii")
+        if object_id and not object_id.strip("0"):
+            continue
+        rel = raw_path.decode("utf-8", errors="surrogateescape")
+        blob_paths.setdefault(object_id, set()).add(rel)
+
+    batch = subprocess.Popen(
+        ["git", "cat-file", "--batch"],
+        cwd=root,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+    )
+    assert batch.stdin is not None and batch.stdout is not None
+    for object_id, paths in blob_paths.items():
+        # A path allowlisted today may have contained unrelated sensitive data
+        # in an older revision, so history mode only skips binary/generated data.
+        scannable_paths = sorted(rel for rel in paths if not should_skip(rel, use_allowlist=False))
+        if not scannable_paths:
+            continue
+        batch.stdin.write(f"{object_id}\n".encode("ascii"))
+        batch.stdin.flush()
+        header = batch.stdout.readline().decode("ascii", errors="replace").strip().split()
+        if len(header) != 3 or header[1] != "blob":
+            raise RuntimeError(f"Unable to read historical Git blob {object_id[:12]}")
+        size = int(header[2])
+        content = batch.stdout.read(size).decode("utf-8", errors="replace")
+        batch.stdout.read(1)  # trailing newline from cat-file --batch
+        yield (f"{scannable_paths[0]} (git object {object_id[:12]})", content)
+
+    batch.stdin.close()
+    if batch.wait() != 0:
+        raise RuntimeError("git cat-file --batch failed")
+
+
 def main() -> int:
-    root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
+    parser = argparse.ArgumentParser(description="Scan repository files for committed credentials")
+    parser.add_argument("root", nargs="?", default=".")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--staged", action="store_true", help="scan the exact content in the Git index")
+    modes.add_argument("--history", action="store_true", help="scan every reachable Git blob")
+    args = parser.parse_args()
+    root = Path(args.root).resolve()
     all_findings: list[str] = []
 
-    for path in candidate_files(root):
-        rel = path.relative_to(root).as_posix()
-        for line_no, label, excerpt in scan_file(path, rel):
-            all_findings.append(f"  {rel}:{line_no}: {label}\n      {excerpt}")
+    if args.staged:
+        inputs = staged_files(root)
+    elif args.history:
+        inputs = history_files(root)
+    else:
+        inputs = [
+            (path.relative_to(root).as_posix(), path.read_text(encoding="utf-8", errors="replace"))
+            for path in candidate_files(root)
+        ]
+
+    inspected = 0
+    for rel, content in inputs:
+        inspected += 1
+        for line_no, label in scan_text(content):
+            all_findings.append(f"  {rel}:{line_no}: {label} (value redacted)")
 
     if all_findings:
         print("ERROR: possible committed credentials found:\n")
@@ -146,7 +289,8 @@ def main() -> int:
         )
         return 1
 
-    print(f"Secret scan passed cleanly ({len(candidate_files(root))} files inspected).")
+    mode = "staged files" if args.staged else "historical blobs" if args.history else "files"
+    print(f"Secret scan passed cleanly ({inspected} {mode} inspected).")
     return 0
 
 

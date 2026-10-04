@@ -16,9 +16,9 @@ const INITIAL_MANIFEST: GitHubAppManifest = {
     contents: 'write',
     pull_requests: 'write',
     issues: 'write',
-    actions: 'write',
+    actions: 'read',
     checks: 'write',
-    workflows: 'write',
+    workflows: 'read',
     metadata: 'read',
   },
   default_events: [

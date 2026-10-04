@@ -43,7 +43,7 @@ Ensure the following repository permissions are configured:
 | **Repository contents** | `Read & Write` | Commit code changes and push branches (`feature/*`, `agent/*`) |
 | **Pull requests** | `Read & Write` | Create, update, and comment on agent PRs |
 | **Issues** | `Read & Write` | Read task context, triage bugs, and link issues |
-| **Workflows / Actions** | `Read & Write` | Trigger CI checks (`workflow_dispatch`) |
+| **Workflows / Actions** | `Read-only` | Inspect CI status without allowing the app to rewrite workflows |
 | **Checks** | `Read & Write` | Inspect verification suites and report status |
 | **Metadata** | `Read-only` | Mandatory default for GitHub Apps |
 

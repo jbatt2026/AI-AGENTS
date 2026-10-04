@@ -1,21 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { Key, ShieldCheck, Copy, Check, Lock, RefreshCw, Terminal, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Key, ShieldCheck, Copy, Check, Lock, RefreshCw, Terminal, AlertTriangle } from 'lucide-react';
 import { AgentCredentials } from '../types';
 
 const DEFAULT_CREDS: AgentCredentials = {
   appId: '1048291',
   installationId: '58392019',
-  privateKey: '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0rK1ZJ9r...[RSA PRIVATE KEY FOR GITHUB APP]...AgMBAAEC\n-----END RSA PRIVATE KEY-----',
   targetRepo: 'jbatt2026/AI-AGENTS',
-  webhookSecret: 'whsec_98f3b6c7a1e42d8805f129c',
 };
 
+const PUBLIC_CONFIG_STORAGE_KEY = 'ai_agent_public_config';
+
+function loadPublicConfig(): AgentCredentials {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PUBLIC_CONFIG_STORAGE_KEY) || '{}');
+    return {
+      appId: typeof saved.appId === 'string' ? saved.appId : DEFAULT_CREDS.appId,
+      installationId: typeof saved.installationId === 'string' ? saved.installationId : DEFAULT_CREDS.installationId,
+      targetRepo: typeof saved.targetRepo === 'string' ? saved.targetRepo : DEFAULT_CREDS.targetRepo,
+    };
+  } catch {
+    localStorage.removeItem(PUBLIC_CONFIG_STORAGE_KEY);
+    return DEFAULT_CREDS;
+  }
+}
+
+function createSimulationId() {
+  return `simulation-not-a-credential-${crypto.randomUUID()}`;
+}
+
 export const TokenAuthSimulator: React.FC = () => {
-  const [creds, setCreds] = useState<AgentCredentials>(() => {
-    const saved = localStorage.getItem('ai_agent_creds');
-    return saved ? JSON.parse(saved) : DEFAULT_CREDS;
-  });
-  const [showKey, setShowKey] = useState(false);
+  const [creds, setCreds] = useState<AgentCredentials>(loadPublicConfig);
   const [copiedToken, setCopiedToken] = useState(false);
   const [copiedHeader, setCopiedHeader] = useState(false);
   const [simulatedToken, setSimulatedToken] = useState<string>('');
@@ -23,13 +37,16 @@ export const TokenAuthSimulator: React.FC = () => {
   const [codeLang, setCodeLang] = useState<'node' | 'python' | 'curl'>('node');
 
   useEffect(() => {
-    localStorage.setItem('ai_agent_creds', JSON.stringify(creds));
+    try {
+      localStorage.setItem(PUBLIC_CONFIG_STORAGE_KEY, JSON.stringify(creds));
+    } catch {
+      // Public simulator settings need not persist when storage is disabled.
+    }
   }, [creds]);
 
   useEffect(() => {
     // Generate simulated token
-    const hash = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    setSimulatedToken(`ghs_${hash}`);
+    setSimulatedToken(createSimulationId());
     setTokenTimeLeft(3600);
 
     const timer = setInterval(() => {
@@ -40,8 +57,7 @@ export const TokenAuthSimulator: React.FC = () => {
   }, [creds.installationId, creds.appId]);
 
   const handleRefreshSimToken = () => {
-    const hash = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    setSimulatedToken(`ghs_${hash}`);
+    setSimulatedToken(createSimulationId());
     setTokenTimeLeft(3600);
   };
 
@@ -129,7 +145,7 @@ installation_token = get_installation_token(
     generate_jwt("${creds.appId}", os.environ["GITHUB_APP_PRIVATE_KEY"]),
     "${creds.installationId}"
 )
-print(f"Token obtained: {installation_token[:10]}...")`;
+print("Installation token obtained successfully")`;
 
   const getCurlSnippet = () => `# Step 1: Request an installation access token using your signed JWT
 curl -X POST \\
@@ -139,7 +155,7 @@ curl -X POST \\
 
 # Step 2: Use the installation token to open an Agent PR
 curl -X POST \\
-  -H "Authorization: Bearer ${simulatedToken}" \\
+  -H "Authorization: Bearer \$GITHUB_INSTALLATION_TOKEN" \\
   -H "Accept: application/vnd.github+json" \\
   https://api.github.com/repos/${creds.targetRepo}/pulls \\
   -d '{
@@ -229,7 +245,7 @@ curl -X POST \\
               </h3>
               <div className="flex items-center space-x-1 text-[11px] text-amber-400">
                 <Lock className="w-3 h-3" />
-                <span>Stored in Local State</span>
+                <span>Public IDs Only</span>
               </div>
             </div>
 
@@ -275,29 +291,8 @@ curl -X POST \\
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-slate-400">
-                    Private Key (.pem) Mask
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="text-[11px] text-blue-400 hover:text-blue-300 inline-flex items-center space-x-1"
-                  >
-                    {showKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                    <span>{showKey ? 'Hide Key' : 'Reveal Key'}</span>
-                  </button>
-                </div>
-                <textarea
-                  rows={3}
-                  value={creds.privateKey}
-                  onChange={(e) => setCreds({ ...creds, privateKey: e.target.value })}
-                  className={`w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-300 font-mono focus:outline-none focus:border-blue-500 ${
-                    !showKey ? 'blur-[2px]' : ''
-                  }`}
-                  placeholder="-----BEGIN RSA PRIVATE KEY-----"
-                />
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs leading-5 text-emerald-200">
+                Private keys and webhook secrets are intentionally unavailable in this browser UI. Configure them only in the server-side <code className="font-mono">GITHUB_APP_PRIVATE_KEY</code> and <code className="font-mono">GITHUB_APP_WEBHOOK_SECRET</code> environment variables.
               </div>
             </div>
 
@@ -305,7 +300,7 @@ curl -X POST \\
             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start space-x-2 text-xs text-amber-300">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <p>
-                <strong>Security Rule:</strong> Never commit your private key (<code className="text-amber-200 font-mono">.pem</code>) into the git repository. Inject it via <code className="text-amber-200 font-mono">GITHUB_APP_PRIVATE_KEY</code> in environment variables or GitHub Secrets.
+                <strong>Security Rule:</strong> This simulator stores only non-secret IDs and repository names. Never paste credentials into a browser form or commit a private key; inject secrets from a server-side environment or secret manager.
               </p>
             </div>
           </div>
