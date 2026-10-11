@@ -27,3 +27,9 @@ npm run lint && npm test && npm run build
 Open the **Agent Chat** tab. The Claude agent can read the target repo and, within hard server-side limits, open **draft** PRs from `agent/<name>-<slug>` branches: it cannot merge, touch `main`, edit `.github/`, `.githooks/`, `CODEOWNERS` or credentials, or commit anything that looks like a secret. Each session has a write budget (`AGENT_WRITE_BUDGET`, default 10) and a Stop button; every tool call is logged to `.agent-log.jsonl`. Point `GITHUB_TARGET_REPO` at a scratch repo while testing. The other tabs are interactive demos with canned output.
 
 Set `VITE_HOST=0.0.0.0` only on a trusted network; the agent server itself always binds 127.0.0.1. See SECURITY.md for credential handling.
+
+## WALLY-WORLD
+
+This project incorporates [WALLY-WORLD](https://github.com/jbatt2026/WALLY-WORLD), an AI assistant agent/delegator scaffold. Its Claude settings are in `.claude/settings.json`; its Visual Studio ignore rules are combined with this project's rules. Existing shared agent lessons are preserved in `.clawness/memory.md`.
+
+See [the imported project notes](docs/wally-world/README.md) and [original license](docs/wally-world/LICENSE) for provenance. The imported license applies to WALLY-WORLD material.
