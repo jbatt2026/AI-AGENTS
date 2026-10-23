@@ -13,6 +13,20 @@ export interface Health {
   budget: { limit: number; remaining: number };
   busy: boolean;
   messages: number;
+  webhook: { enabled: boolean; last_event_at: string | null; rejected: number };
+}
+
+export interface WebhookEvent {
+  id: string;
+  event: string;
+  action: string;
+  repo: string;
+  number: number | null;
+  title: string;
+  actor: string;
+  url: string;
+  state: string;
+  at: string;
 }
 
 export interface LogEntry {
@@ -62,6 +76,7 @@ const post = (path: string, body?: unknown) =>
 
 export const getHealth = () => api<Health>('/health');
 export const getLog = () => api<LogEntry[]>('/log');
+export const getEvents = () => api<WebhookEvent[]>('/events');
 export const stopTurn = () => post('/stop');
 export const resetChat = () => post('/reset');
 export const resetBudget = () => post('/budget/reset');

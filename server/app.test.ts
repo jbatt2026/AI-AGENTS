@@ -30,6 +30,7 @@ const deps = (over: Partial<AppDeps> = {}): AppDeps => ({
   model: 'm',
   repo: null,
   budget: new WriteBudget(3),
+  events: null,
   audit: () => {},
   auditLog: () => [],
   ...over,
@@ -107,5 +108,19 @@ describe('chat', () => {
     await Promise.all([r1.status === 200 ? r1.text() : r2.text()]);
     // slot is free again afterwards
     expect((await post()).status).toBe(200);
+  });
+});
+
+describe('events api', () => {
+  it('requires the token and lists stored events', async () => {
+    const { EventStore } = await import('./events');
+    const events = new EventStore(null);
+    events.add({ id: 'g1', event: 'push', action: '', repo: 'o/r', number: null, title: 't', actor: 'a', url: '', state: 'push', at: 'now' });
+    const app = createApp(deps({ events }));
+    expect((await app.request('/api/events', { headers: { host: 'localhost:8787' } })).status).toBe(401);
+    const res = await app.request('/api/events', { headers: headers() });
+    expect(await res.json()).toHaveLength(1);
+    const health = (await (await app.request('/api/health', { headers: headers() })).json()) as { webhook: unknown };
+    expect(health.webhook).toMatchObject({ enabled: true, rejected: 0 });
   });
 });

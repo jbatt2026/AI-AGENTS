@@ -118,37 +118,15 @@ VITE_PORT=5000 npm run dev
 ## 5. Webhook Security
 
 ### Current Status
-- Webhook URL: Environment variable `GITHUB_WEBHOOK_URL` (see `.env.example`)
-- Webhook signature: Required `GITHUB_APP_WEBHOOK_SECRET` (stored in GitHub Secrets)
-- Webhook status: Inactive until deployed
+- Receiver: `server/webhook.ts`, a separate listener (`WEBHOOK_HOST`/`WEBHOOK_PORT`, default `127.0.0.1:8788`) serving only `POST /api/github/webhook`. It is off unless `GITHUB_APP_WEBHOOK_SECRET` and `GITHUB_TARGET_REPO` are set.
+- Signature: HMAC-SHA256 over the raw body (`X-Hub-Signature-256`), checked with a constant-time comparison before any JSON parsing. Failures return 401 and are counted, not logged individually.
+- Replays: deliveries are deduplicated by `X-GitHub-Delivery` (persisted in `.agent-events.jsonl`), so GitHub retries and "Redeliver" take effect once.
+- Scope: only the target repository and the events `pull_request`, `pull_request_review`, `issue_comment`, `workflow_run`, `push`. Bodies are capped at 1 MB. Only a small summary is kept (titles truncated; comment and review bodies are never stored).
+- The agent does not act on events; they are shown in the GUI. Comment text on a public repo is untrusted input, so wiring events into agent turns would need an author allow-list first.
+- Manifest webhook stays `"active": false` until you deploy (see INSTALL_GITHUB_APP.md).
 
-### When Deploying Webhook
-
-1. **Implement webhook handler** that:
-   - Validates GitHub webhook signature using `GITHUB_APP_WEBHOOK_SECRET`
-   - Uses HTTPS/TLS only
-   - Responds within 30 seconds (async processing for long tasks)
-   - Logs all requests (for audit trail)
-
-2. **Update manifest:**
-   ```bash
-   # Set in GitHub Actions Secrets first
-   GITHUB_WEBHOOK_URL=https://your-endpoint.example.com/api/github/webhook
-   ```
-
-3. **Validate signature (example in Node.js):**
-   ```javascript
-   const crypto = require('crypto');
-   
-   function validateWebhookSignature(secret, payload, signature) {
-     const hmac = crypto.createHmac('sha256', secret);
-     hmac.update(payload);
-     const expected = 'sha256=' + hmac.digest('hex');
-     return crypto.timingSafeEqual(expected, signature);
-   }
-   ```
-
----
+### Exposing the Receiver
+Expose only port 8788, over HTTPS, via a tunnel or reverse proxy (TLS terminated there). Do not expose the agent API (port 8787). Generate the secret with `openssl rand -hex 32` and keep it in `.env.local` / your secret manager, never in the repository.
 
 ## 6. For AI Agents
 

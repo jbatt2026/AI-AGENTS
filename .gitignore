@@ -468,6 +468,7 @@ Thumbs.db
 # Agent server runtime files (token, audit log)
 .agent-token
 .agent-log.jsonl
+.agent-events.jsonl
 
 # Session files
 .vite/

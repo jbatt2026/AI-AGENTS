@@ -27,7 +27,7 @@ You can create the app using the pre-configured manifest in `.github/GITHUB_APP_
 
 1. Navigate to **GitHub Settings** -> **Developer settings** -> **GitHub Apps** -> **New GitHub App**.
 2. Or use GitHub's App Manifest flow by submitting a POST request containing `.github/GITHUB_APP_MANIFEST.json`.
-   The manifest's `hook_attributes.url` is the literal string `${GITHUB_WEBHOOK_URL}`, which GitHub does not expand. Replace it with your real HTTPS endpoint before submitting, and keep `"active": false` until a webhook receiver exists.
+   The manifest's `hook_attributes.url` is the literal string `${GITHUB_WEBHOOK_URL}`, which GitHub does not expand. Replace it with your real HTTPS endpoint before submitting, and keep `"active": false` until the receiver (Step 6) is reachable.
 3. Set the following details:
    - **GitHub App name**: `ai-agents-bot` (or custom name)
    - **Homepage URL**: Your repository URL or deployment URL
@@ -81,3 +81,13 @@ cp .env.example .env.local   # add ANTHROPIC_API_KEY and the App values from Ste
 npm run dev
 ```
 Open `http://localhost:3000` (localhost only; set `VITE_HOST=0.0.0.0` to expose the GUI on a trusted network) and use the **Agent Chat** tab. The agent server mints installation tokens itself with `@octokit/auth-app`; the key never reaches the browser. Use a scratch repository for `GITHUB_TARGET_REPO` until you trust the setup. The Auth Simulator and PR Pipeline Workbench tabs are demos with canned output and do not contact GitHub.
+
+## Step 6: Receive Webhooks (optional)
+
+The receiver shows GitHub activity (PRs, reviews, comments, CI runs, pushes for the target repo) in the **GitHub events** panel. It never makes the agent act.
+
+1. Generate a secret: `openssl rand -hex 32`. Put it in `.env.local` as `GITHUB_APP_WEBHOOK_SECRET` (and `GITHUB_TARGET_REPO`).
+2. `npm run dev`. The log line `webhook: http://127.0.0.1:8788/api/github/webhook` confirms it is listening.
+3. Expose port **8788 only** over HTTPS with a tunnel or reverse proxy (not the agent API on 8787).
+4. In the GitHub App settings set **Webhook URL** to `https://<your-host>/api/github/webhook`, **Webhook secret** to the same value, tick **Active**, and subscribe to Pull request, Pull request review, Issue comment, Workflow run and Push.
+5. Test: App settings → Advanced → Recent deliveries → **Redeliver** (expect 200/202). A `ping` returns 200.

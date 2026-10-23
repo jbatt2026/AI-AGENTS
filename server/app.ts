@@ -1,10 +1,11 @@
-import { timingSafeEqual } from 'node:crypto';
 import type Anthropic from '@anthropic-ai/sdk';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { runTurn, type AgentEvent, type MessagesClient } from './agent';
 import { WriteBudget } from './guardrails';
 import type { GitHubPort } from './github';
+import type { EventStore } from './events';
+import { safeEqual } from './util';
 
 export const MAX_MESSAGE_CHARS = 8000;
 export const MAX_HISTORY = 80;
@@ -19,14 +20,10 @@ export interface AppDeps {
   model: string;
   repo: string | null;
   budget: WriteBudget;
+  /** Webhook event store, or null when the receiver is not enabled. */
+  events: EventStore | null;
   audit: (entry: Record<string, unknown>) => void;
   auditLog: () => Record<string, unknown>[];
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
 }
 
 export function createApp(d: AppDeps) {
@@ -57,8 +54,15 @@ export function createApp(d: AppDeps) {
       budget: { limit: d.budget.limit, remaining: d.budget.remaining },
       busy: running !== null,
       messages: history.length,
+      webhook: {
+        enabled: d.events !== null,
+        last_event_at: d.events?.lastEventAt ?? null,
+        rejected: d.events?.rejected ?? 0,
+      },
     }),
   );
+
+  app.get('/api/events', (c) => c.json(d.events?.list() ?? []));
 
   app.get('/api/log', (c) => c.json(d.auditLog()));
 

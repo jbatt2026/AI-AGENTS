@@ -20,7 +20,7 @@ A React 18 / Vite 6 / Tailwind 4 dashboard plus GitHub App scaffolding. Verify w
 | Path | Purpose |
 | --- | --- |
 | `src/` | Dashboard. `AgentChat` talks to the live agent via `src/lib/agentClient.ts`; the other four tabs are **simulated demos** |
-| `server/` | Local Node agent server (Hono, 127.0.0.1): Claude tool-use loop (`agent.ts`), GitHub tools (`tools.ts`, `github.ts`), hard limits (`guardrails.ts`), bearer-token/Host/Origin checks (`app.ts`) |
+| `server/` | Local Node agent server (Hono, 127.0.0.1): Claude tool-use loop (`agent.ts`), GitHub tools (`tools.ts`, `github.ts`), hard limits (`guardrails.ts`), bearer-token/Host/Origin checks (`app.ts`), webhook receiver (`webhook.ts`, `events.ts`) |
 | `.github/GITHUB_APP_MANIFEST.json` | App manifest (webhook inactive; URL placeholder must be substituted before use) |
 | `.github/workflows/agent-pr-check.yml` | Branch-name, attribution, typecheck, build, secret-scan checks |
 | `.github/scripts/scan_secrets.py` | Secret scanner used by CI |
@@ -29,7 +29,7 @@ A React 18 / Vite 6 / Tailwind 4 dashboard plus GitHub App scaffolding. Verify w
 | `INSTALL_GITHUB_APP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODEOWNERS` | Docs and review routing |
 | `outputs/AI-AGENTS-completion-guide.md` | Gap analysis and remaining work |
 
-**Not yet present:** a webhook receiver. Tests are Vitest (`npm test`), covering `server/` and `src/lib/`. The write guardrails live in `server/guardrails.ts` and must not be loosened by prompt or tool changes; the agent cannot write that file.
+**Webhook receiver:** `server/webhook.ts` + `server/events.ts`, a separate listener (default `127.0.0.1:8788`) that verifies signatures, dedupes by delivery id and feeds the GUI's events panel; it never triggers agent actions. Tests are Vitest (`npm test`), covering `server/` and `src/lib/`. The write guardrails live in `server/guardrails.ts` and must not be loosened by prompt or tool changes; the agent cannot write that file.
 
 ## Working conventions
 
