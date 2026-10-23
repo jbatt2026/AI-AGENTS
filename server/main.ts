@@ -65,7 +65,9 @@ const audit = (entry: Record<string, unknown>) => {
 const webhookSecret = env.GITHUB_APP_WEBHOOK_SECRET;
 const webhookPort = Number(env.WEBHOOK_PORT || 8788);
 const webhookHost = env.WEBHOOK_HOST || '127.0.0.1';
-const events = webhookSecret && repo ? new EventStore('.agent-events.jsonl') : null;
+// Needs only the repo name, not the App credentials: verifying deliveries uses the shared secret.
+const targetRepo = env.GITHUB_TARGET_REPO?.includes('/') ? env.GITHUB_TARGET_REPO : null;
+const events = webhookSecret && targetRepo ? new EventStore('.agent-events.jsonl') : null;
 
 const hosts = [`127.0.0.1:${port}`, `localhost:${port}`, `127.0.0.1:${vitePort}`, `localhost:${vitePort}`];
 const app = createApp({
@@ -89,8 +91,8 @@ serve({ fetch: app.fetch, hostname: '127.0.0.1', port }, () => {
   console.log(`  writes:    draft PRs on agent/* branches, budget ${budget.limit}`);
 });
 
-if (events && webhookSecret && repo) {
-  const hook = createWebhookApp({ secret: webhookSecret, repo, store: events });
+if (events && webhookSecret && targetRepo) {
+  const hook = createWebhookApp({ secret: webhookSecret, repo: targetRepo, store: events });
   serve({ fetch: hook.fetch, hostname: webhookHost, port: webhookPort }, () => {
     console.log(`  webhook:   http://${webhookHost}:${webhookPort}/api/github/webhook (signature required)`);
   });

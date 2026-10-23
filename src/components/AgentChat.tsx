@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Bot, ChevronDown, ChevronRight, RotateCcw, Send, Square, Wrench } from 'lucide-react';
 import {
+  getEvents,
   getHealth,
   getLog,
   resetBudget,
@@ -10,6 +11,7 @@ import {
   type AgentEvent,
   type Health,
   type LogEntry,
+  type WebhookEvent,
 } from '../lib/agentClient';
 
 type Item =
@@ -85,6 +87,7 @@ export function AgentChat() {
   const [health, setHealth] = useState<Health | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [events, setEvents] = useState<WebhookEvent[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -92,6 +95,7 @@ export function AgentChat() {
     try {
       setHealth(await getHealth());
       setLog(await getLog());
+      setEvents(await getEvents());
       setHealthError(null);
     } catch (e) {
       setHealthError(e instanceof Error ? e.message : String(e));
@@ -100,6 +104,9 @@ export function AgentChat() {
 
   useEffect(() => {
     void refresh();
+    // Webhook events arrive independently of chat turns, so poll while this tab is mounted.
+    const timer = setInterval(() => void refresh(), 10_000);
+    return () => clearInterval(timer);
   }, [refresh]);
 
   useEffect(() => {
@@ -235,6 +242,45 @@ export function AgentChat() {
             >
               Budget spent — allow more writes
             </button>
+          )}
+        </div>
+
+        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+          <h3 className="font-semibold text-sm mb-2">GitHub events</h3>
+          {health && !health.webhook.enabled ? (
+            <p className="text-xs text-slate-500">
+              Receiver off. Set <code className="font-mono">GITHUB_APP_WEBHOOK_SECRET</code> and <code className="font-mono">GITHUB_TARGET_REPO</code>, then restart.
+            </p>
+          ) : events.length === 0 ? (
+            <p className="text-xs text-slate-500">No events yet.</p>
+          ) : (
+            <ul className="space-y-1.5 max-h-72 overflow-auto">
+              {events.slice(0, 30).map((e) => (
+                <li key={e.id} className="text-xs">
+                  <div className="flex justify-between gap-2">
+                    <span className="font-mono text-slate-300">
+                      {e.event}
+                      {e.action ? `.${e.action}` : ''}
+                      {e.number !== null ? ` #${e.number}` : ''}
+                    </span>
+                    <span className="text-slate-500 shrink-0">{new Date(e.at).toLocaleTimeString()}</span>
+                  </div>
+                  <div className="text-slate-400 truncate">
+                    {e.url ? (
+                      <a href={e.url} target="_blank" rel="noreferrer noopener" className="text-blue-400 hover:underline">
+                        {e.title || e.state}
+                      </a>
+                    ) : (
+                      e.title || e.state
+                    )}
+                    {e.title && e.state ? ` · ${e.state}` : ''}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {health && health.webhook.rejected > 0 && (
+            <p className="text-[11px] text-amber-400 mt-2">{health.webhook.rejected} request(s) rejected (bad signature or headers).</p>
           )}
         </div>
 
