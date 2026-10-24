@@ -14,86 +14,98 @@ The repository is **public**. Assume anything committed here is world-readable.
 
 ## Current state — read this first
 
-This repo is still mostly a scaffold. The committed files are:
+A React 18 / Vite 6 / Tailwind 4 dashboard plus GitHub App scaffolding. Verify with
+`git ls-files` before generalizing.
 
-```
-README.md          # repo purpose and agent guidance
-CLAUDE.md          # this file
-pentest-lab/       # local Docker pen-testing practice lab (see its README)
-```
+| Path | Purpose |
+| --- | --- |
+| `src/` | Dashboard. `AgentChat` talks to the live agent via `src/lib/agentClient.ts`; the other four tabs are **simulated demos** |
+| `server/` | Local Node agent server (Hono, 127.0.0.1): Claude tool-use loop (`agent.ts`), GitHub tools (`tools.ts`, `github.ts`), hard limits (`guardrails.ts`), bearer-token/Host/Origin checks (`app.ts`), webhook receiver (`webhook.ts`, `events.ts`) |
+| `.github/GITHUB_APP_MANIFEST.json` | App manifest (webhook inactive; URL placeholder must be substituted before use) |
+| `.github/workflows/agent-pr-check.yml` | Branch-name, attribution, typecheck, build, secret-scan checks |
+| `.github/scripts/scan_secrets.py` | Secret scanner used by CI |
+| `.github/dependabot.yml` | Weekly npm + Actions updates |
+| `.githooks/pre-commit` | Local secret scan (enable with `core.hooksPath`) |
+| `INSTALL_GITHUB_APP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODEOWNERS` | Docs and review routing |
+| `outputs/AI-AGENTS-completion-guide.md` | Gap analysis and remaining work |
+| `pentest-lab/` | Local Docker pen-testing practice lab (Juice Shop, WebGoat, attacker toolbox). Shell and Compose only; no tests or CI. Its README has the details |
 
-`pentest-lab/` is shell and Docker Compose only: `docker-compose.yml`, an
-attacker `Dockerfile`, `lab.sh` and a README. It has **no test suite and no CI**.
-The GitHub App tooling described in `README.md` does not exist yet. Do not report
-or assume otherwise.
-
-`README.md` describes the repo's intended contents in the present tense, but
-those files are **not yet written**:
-
-| Referenced in README | Exists? | Purpose when created |
-| --- | --- | --- |
-| `INSTALL_GITHUB_APP.md` | No | Step-by-step GitHub App install/config |
-| `.github/GITHUB_APP_MANIFEST.json` | No | App manifest (permissions, webhook, events) |
-| `CONTRIBUTING.md` | No | Contributor and agent guidelines |
-| `CODEOWNERS` | No | Review ownership routing |
-| `.github/workflows/*.yml` | No | Checks on agent-created PRs |
-
-Treat that table as the backlog. When a task touches one of those items, create
-the file rather than assuming it is somewhere you haven't looked. When you do
-create one, update the table above so this file stays accurate.
-
-Because the tree is nearly empty, **verify before you generalize**: a quick
-`git ls-files` is cheaper than an assumption about structure that no longer holds
-once real code lands.
+**Webhook receiver:** `server/webhook.ts` + `server/events.ts`, a separate listener (default `127.0.0.1:8788`) that verifies signatures, dedupes by delivery id and feeds the GUI's events panel; it never triggers agent actions. Tests are Vitest (`npm test`), covering `server/` and `src/lib/`. The write guardrails live in `server/guardrails.ts` and must not be loosened by prompt or tool changes; the agent cannot write that file.
 
 ## Working conventions
 
 ### Language and tooling
 
-No language has been committed to yet. Whatever the first substantive change
-picks, establish it deliberately and record it here:
+The project uses a standard TypeScript / Vite / React stack with Node.js 22 runtime:
 
-- Add a dependency manifest at the repo root (`package.json`, `pyproject.toml`,
-  or equivalent) in the same change that adds the first source file.
-- Add a runnable check (linter and/or tests) in that same change, and wire it
-  into `.github/workflows/` so agent-authored PRs are actually verified.
-- Then replace the "Commands" section below with the real commands.
-
-Prefer the standard, boring choice for the ecosystem over anything clever — this
-repo's audience is other agents, and predictable layout matters more than taste.
+- Dependency manifest: `package.json`
+- Typecheck: `npm run lint` (`tsc` for `src/` and `server/`); tests: `npm test`
+- Build command: `npm run build`
+- Dev server: `npm run dev` (starts on port 3000, host localhost by default; use `VITE_HOST=0.0.0.0` to expose to network)
+- Continuous Integration: `.github/workflows/agent-pr-check.yml`
 
 ### Commands
 
-Run from `pentest-lab/`. Needs Docker with Compose v2:
+Documented invocations:
+- `npm install` — install dependencies
+- `npm run dev` — start the agent server (127.0.0.1:8787) and the GUI at `http://localhost:3000` (localhost only by default)
+- `npm run lint` — typecheck only
+- `npm run build` — compile production bundle into `dist/` (does not typecheck; CI runs lint separately)
+- `npm run preview` — preview production build locally
+- `pentest-lab/lab.sh up|smoke|attacker|down|reset` — Docker practice lab (run from `pentest-lab/`; `smoke` is its only runtime check)
 
-- `./lab.sh up` — start the vulnerable targets (Juice Shop, WebGoat) on 127.0.0.1
-- `./lab.sh smoke` — check each target answers (the only runtime check; there is no test suite)
-- `./lab.sh attacker` — build and open a shell in the attacker toolbox
-- `./lab.sh down` / `./lab.sh reset` — stop containers / also remove the local attacker image
-- `docker compose config --quiet` — validate `docker-compose.yml` without starting anything
+For network access (shared/cloud environments), set environment variables:
+```bash
+VITE_HOST=0.0.0.0 npm run dev    # Expose to network (use only on trusted networks)
+VITE_PORT=5000 npm run dev       # Use custom port
+```
 
-There is no linter or unit test for the lab yet. Do not claim a check passed
-unless you ran it.
+### Environment Setup
 
-Once tooling lands, document the exact invocations here (install, lint,
-typecheck, test, run) so future sessions don't have to rediscover them.
+Before developing locally:
+
+```bash
+# Copy template and add your credentials (ONLY to .env.local, which is .gitignored)
+cp .env.example .env.local
+
+# Enable pre-commit secret scanning hook
+git config --local core.hooksPath .githooks
+chmod +x .githooks/pre-commit  # On Unix/macOS
+```
+
+The `.env.local` file is git-ignored and safe for local development. For CI/CD:
+- Use GitHub Secrets (Settings > Secrets > Actions) for GitHub Actions workflows
+- Use your cloud platform's secret manager (AWS Secrets Manager, GCP Secret Manager) for deployed services
+- Never commit `.env.local`, `.env.pem`, or any credential files
 
 ### Layout for new code
 
 When adding the first real code, keep the root uncluttered:
 
 - `.github/` — App manifest, workflows, issue/PR templates, `CODEOWNERS`.
+- `.githooks/` — Git hooks for local development (pre-commit secret scanning)
 - `scripts/` — standalone operational scripts agents run.
 - `src/` (or the ecosystem's convention) — reusable library code.
 - `docs/` — anything longer than a section of `README.md`.
 
-### Secrets
+### Secrets & Credential Safety
 
 This repo is about credentialed automation, so the rule is strict: **never**
 commit App private keys (`.pem`), installation tokens, webhook secrets,
 `.env` files, or any live credential. Reference them as environment variables
 or GitHub Actions secrets and document the variable names only. If you find a
 committed secret, stop and flag it rather than quietly rewriting history.
+
+**Local Protection:**
+- `.env.local`, `*.pem`, and `.env.*local` are git-ignored (see `.gitignore`)
+- Pre-commit hook (in `.githooks/pre-commit`) scans staged changes for secrets before commit
+- CI workflow scans for private keys, API keys, tokens, and AWS credentials
+
+**Setup:**
+After cloning, enable the pre-commit hook:
+```bash
+git config --local core.hooksPath .githooks
+```
 
 ## Git workflow
 

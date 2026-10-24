@@ -16,3 +16,22 @@ How agents should be used
 3. Agents (Hermes, Claude, or other bots) use the app's installation token to create branches and open pull requests.
 
 For detailed installation and configuration steps for the GitHub App, see INSTALL_GITHUB_APP.md.
+
+## Run locally
+```bash
+npm install
+cp .env.example .env.local   # then fill in ANTHROPIC_API_KEY (and the GitHub App values for writes)
+npm run dev                  # GUI http://localhost:3000 + agent server 127.0.0.1:8787
+npm run lint && npm test && npm run build
+```
+Open the **Agent Chat** tab. The Claude agent can read the target repo and, within hard server-side limits, open **draft** PRs from `agent/<name>-<slug>` branches: it cannot merge, touch `main`, edit `.github/`, `.githooks/`, `CODEOWNERS` or credentials, or commit anything that looks like a secret. Each session has a write budget (`AGENT_WRITE_BUDGET`, default 10) and a Stop button; every tool call is logged to `.agent-log.jsonl`. Point `GITHUB_TARGET_REPO` at a scratch repo while testing. The other tabs are interactive demos with canned output.
+
+Optional: set `GITHUB_APP_WEBHOOK_SECRET` to enable a webhook receiver on `127.0.0.1:8788` (expose only that port; see INSTALL_GITHUB_APP.md Step 6). Events appear in the GUI; the agent does not act on them.
+
+Set `VITE_HOST=0.0.0.0` only on a trusted network; the agent server itself always binds 127.0.0.1. See SECURITY.md for credential handling.
+
+## WALLY-WORLD
+
+This project incorporates [WALLY-WORLD](https://github.com/jbatt2026/WALLY-WORLD), an AI assistant agent/delegator scaffold. Its Claude settings are in `.claude/settings.json`; its Visual Studio ignore rules are combined with this project's rules. Existing shared agent lessons are preserved in `.clawness/memory.md`.
+
+See [the imported project notes](docs/wally-world/README.md) and [original license](docs/wally-world/LICENSE) for provenance. The imported license applies to WALLY-WORLD material.

@@ -1,0 +1,69 @@
+name: Agent PR Validation Check
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate branch naming convention
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/')
+        env:
+          # Passed as an environment variable, never interpolated into the
+          # script body: ${{ }} splices the raw value into the shell source
+          # before bash parses it, which is a script-injection vector.
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          echo "Validating branch: $BRANCH"
+          if [[ ! $BRANCH =~ ^agent/[a-z0-9-]+$ ]]; then
+            echo "ERROR: Agent branch '$BRANCH' does not match pattern 'agent/<agent-name>-<task-slug>'"
+            echo "Example: agent/claude-fix-webhook, agent/hermes-add-docs"
+            exit 1
+          fi
+          echo "Branch naming validation passed."
+
+      - name: Validate agent PR attribution footer
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        env:
+          # Same reason. A pull request body is attacker-controlled text on a
+          # public repository; interpolating it here ran it as shell.
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [[ "$BODY" == *"Generated with"* ]] || [[ "$BODY" == *"Co-authored-by:"* ]]; then
+            echo "Attribution footer found in PR body."
+          else
+            echo "WARNING: PR body may lack proper attribution. Recommended attribution footer:"
+            echo "> Generated with Claude Code / AI-AGENTS"
+            echo "> Co-authored-by: Claude <noreply@anthropic.com>"
+            # Comment if attribution is missing (non-blocking for now)
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Check for committed secrets
+        run: python3 .github/scripts/scan_secrets.py .

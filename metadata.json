@@ -1,0 +1,8 @@
+{
+  "name": "AI Agents GitHub Automation Studio",
+  "description": "Interactive developer toolkit and dashboard for configuring GitHub Apps, generating agent installation tokens, creating PR workflows, and managing automated AI coding agents.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
