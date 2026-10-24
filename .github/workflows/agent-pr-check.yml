@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Validate branch naming convention
         if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/')
