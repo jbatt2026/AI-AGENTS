@@ -14,15 +14,18 @@ The repository is **public**. Assume anything committed here is world-readable.
 
 ## Current state — read this first
 
-This repo is a scaffold. As of the latest commit it contains exactly two files:
+This repo is still mostly a scaffold. The committed files are:
 
 ```
-README.md     # repo purpose and agent guidance
-CLAUDE.md     # this file
+README.md          # repo purpose and agent guidance
+CLAUDE.md          # this file
+pentest-lab/       # local Docker pen-testing practice lab (see its README)
 ```
 
-There is **no source code, no package manifest, no test suite, no CI, and no
-build system yet.** Do not report or assume otherwise.
+`pentest-lab/` is shell and Docker Compose only: `docker-compose.yml`, an
+attacker `Dockerfile`, `lab.sh` and a README. It has **no test suite and no CI**.
+The GitHub App tooling described in `README.md` does not exist yet. Do not report
+or assume otherwise.
 
 `README.md` describes the repo's intended contents in the present tense, but
 those files are **not yet written**:
@@ -61,9 +64,16 @@ repo's audience is other agents, and predictable layout matters more than taste.
 
 ### Commands
 
-None yet. There is nothing to install, build, lint, or test. Do not invent
-commands or claim a check passed when no check exists; say plainly that the repo
-has no test suite.
+Run from `pentest-lab/`. Needs Docker with Compose v2:
+
+- `./lab.sh up` — start the vulnerable targets (Juice Shop, WebGoat) on 127.0.0.1
+- `./lab.sh smoke` — check each target answers (the only runtime check; there is no test suite)
+- `./lab.sh attacker` — build and open a shell in the attacker toolbox
+- `./lab.sh down` / `./lab.sh reset` — stop containers / also remove the local attacker image
+- `docker compose config --quiet` — validate `docker-compose.yml` without starting anything
+
+There is no linter or unit test for the lab yet. Do not claim a check passed
+unless you ran it.
 
 Once tooling lands, document the exact invocations here (install, lint,
 typecheck, test, run) so future sessions don't have to rediscover them.
