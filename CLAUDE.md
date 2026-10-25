@@ -28,6 +28,7 @@ A React 18 / Vite 6 / Tailwind 4 dashboard plus GitHub App scaffolding. Verify w
 | `.githooks/pre-commit` | Local secret scan (enable with `core.hooksPath`) |
 | `INSTALL_GITHUB_APP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODEOWNERS` | Docs and review routing |
 | `outputs/AI-AGENTS-completion-guide.md` | Gap analysis and remaining work |
+| `pentest-lab/` | Local Docker pen-testing practice lab (Juice Shop, WebGoat, attacker toolbox). Shell and Compose only; no tests or CI. Its README has the details |
 
 **Webhook receiver:** `server/webhook.ts` + `server/events.ts`, a separate listener (default `127.0.0.1:8788`) that verifies signatures, dedupes by delivery id and feeds the GUI's events panel; it never triggers agent actions. Tests are Vitest (`npm test`), covering `server/` and `src/lib/`. The write guardrails live in `server/guardrails.ts` and must not be loosened by prompt or tool changes; the agent cannot write that file.
 
@@ -51,6 +52,7 @@ Documented invocations:
 - `npm run lint` — typecheck only
 - `npm run build` — compile production bundle into `dist/` (does not typecheck; CI runs lint separately)
 - `npm run preview` — preview production build locally
+- `pentest-lab/lab.sh up|smoke|attacker|down|reset` — Docker practice lab (run from `pentest-lab/`; `smoke` is its only runtime check)
 
 For network access (shared/cloud environments), set environment variables:
 ```bash
